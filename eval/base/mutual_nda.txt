@@ -1,0 +1,31 @@
+MUTUAL NON-DISCLOSURE AGREEMENT
+
+This Agreement is made on 3 March 2025 between Harbourline Analytics Limited, a company incorporated in England and Wales with company number 01234567 ("Harbourline"), and Copperfield Robotics Ltd, a company incorporated in Scotland with company number SC000123 ("Copperfield").
+
+Each party wishes to disclose certain Confidential Information to the other for the purpose of evaluating a possible joint development of warehouse automation software (the "Purpose").
+
+Confidential Information means all information of a confidential nature disclosed by one party to the other, whether in writing, orally or by any other means, including technical data, source code, customer lists, pricing and business plans.
+
+Confidential Information does not include information that is or becomes generally available to the public other than through a breach of this Agreement, or that the receiving party can show was lawfully in its possession before disclosure.
+
+The receiving party shall keep the Confidential Information secret and shall not use it for any purpose other than the Purpose.
+
+The receiving party may disclose Confidential Information to its employees, officers and professional advisers who need to know it for the Purpose, provided that it ensures each of them is bound by obligations of confidence no less strict than those in this Agreement.
+
+The receiving party may disclose Confidential Information to the extent required by law, by any court of competent jurisdiction or by any regulatory body, provided that it gives the disclosing party as much notice of the disclosure as is lawful and practicable.
+
+On the written request of the disclosing party, the receiving party shall within 10 Business Days return or destroy all documents containing Confidential Information and certify in writing that it has done so.
+
+Nothing in this Agreement grants the receiving party any licence or other right in the Confidential Information, which remains the property of the disclosing party.
+
+All Confidential Information is provided as is, and neither party gives any warranty as to its accuracy or completeness.
+
+The obligations in this Agreement continue for a period of 3 years from the date of this Agreement, regardless of whether the parties enter into any further agreement.
+
+Damages alone may not be an adequate remedy for a breach of this Agreement, and the disclosing party is entitled to seek an injunction or other equitable relief for any threatened or actual breach.
+
+This Agreement and any dispute arising out of it are governed by the law of England and Wales, and the courts of England have exclusive jurisdiction.
+
+Signed for and on behalf of HARBOURLINE ANALYTICS LIMITED by its director.
+
+Signed for and on behalf of COPPERFIELD ROBOTICS LTD by its director.

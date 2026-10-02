@@ -1,0 +1,57 @@
+[build-system]
+requires = ["hatchling>=1.24"]
+build-backend = "hatchling.build"
+
+[project]
+name = "kyralaw-redline"
+version = "0.1.0"
+description = "Word-level redlines for legal documents, rendered as native Word tracked changes"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Kyra Law Limited" }]
+requires-python = ">=3.10"
+dependencies = ["python-docx>=1.1.0"]
+keywords = ["redline", "diff", "docx", "tracked changes", "legal", "compare"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Legal Industry",
+    "Programming Language :: Python :: 3",
+    "Topic :: Office/Business",
+    "Topic :: Text Processing",
+    "Typing :: Typed",
+]
+
+[project.urls]
+Repository = "https://github.com/Kyra-Law/kyralaw-redline"
+
+[project.scripts]
+kyralaw-redline = "kyralaw_redline.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/kyralaw_redline"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+# Separate `elif ... continue` guards read better than one combined condition.
+ignore = ["SIM114"]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+files = ["src", "eval", "tests"]
+
+[[tool.mypy.overrides]]
+module = ["docx", "docx.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

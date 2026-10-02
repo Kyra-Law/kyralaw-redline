@@ -1,0 +1,33 @@
+CONSULTANCY SERVICES AGREEMENT
+
+This Agreement is dated 14 July 2025 and is made between Larkspur Retail Group plc of 20 Mill Lane, Bristol BS1 4XY (the "Client") and Tessellate Data Consulting Ltd of 5 Quay Street, Leeds LS2 7AB (the "Consultant").
+
+The Consultant shall provide the data migration and reporting services described in Schedule 1 (the "Services") from the Commencement Date until the end of the Term.
+
+The Consultant shall perform the Services with reasonable skill and care, in accordance with good industry practice and in compliance with all applicable laws.
+
+The Client shall provide the Consultant with access to its premises, systems and personnel as reasonably required for the performance of the Services.
+
+The Client shall pay the Consultant a fee of £1,200 per day for each day on which the Services are performed, together with any reasonable expenses approved in advance by the Client.
+
+The Consultant shall invoice the Client monthly in arrears, and the Client shall pay each valid invoice within 30 days of receipt.
+
+If the Client fails to pay any amount by the due date, the Consultant may charge interest on the overdue amount at the rate of 4% per year above the Bank of England base rate.
+
+All intellectual property rights in the deliverables created by the Consultant in performing the Services shall vest in the Client on creation, and the Consultant hereby assigns those rights to the Client.
+
+The Consultant shall maintain professional indemnity insurance with a limit of not less than £2,000,000 for each claim throughout the Term and for 6 years afterwards.
+
+Neither party's total liability under this Agreement shall exceed an amount equal to the fees paid in the 12 months before the event giving rise to the claim.
+
+Nothing in this Agreement limits either party's liability for death or personal injury caused by its negligence, or for fraud or fraudulent misrepresentation.
+
+Either party may terminate this Agreement by giving not less than 60 days' written notice to the other party.
+
+Either party may terminate this Agreement with immediate effect if the other party commits a material breach which is not remedied within 14 days of a written request to do so.
+
+On termination, the Client shall pay the Consultant for all Services performed up to the date of termination, and the Consultant shall return all property of the Client in its possession.
+
+The Consultant is an independent contractor and nothing in this Agreement creates a relationship of employment, partnership or agency between the parties.
+
+This Agreement is governed by the law of England and Wales.
