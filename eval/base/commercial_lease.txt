@@ -1,3 +1,5 @@
+{layout} font=Times New Roman; size=11; numbering=legal; header=Lease: Unit 7, Fernhill Trading Estate; footer=page; comments=0
+
 {title} Lease of Unit 7, Fernhill Trading Estate
 
 {subtitle} Particulars and Terms
@@ -6,48 +8,65 @@ This Lease is made on 1 October 2025 between Fernhill Estates Limited (the "Land
 
 {h1} Particulars
 
-{bullet} Property: Unit 7, Fernhill Trading Estate, together with the rights set out in Schedule 1.
-
-{bullet} Term: 10 years from and including the Term Commencement Date.
-
-{bullet} Initial annual rent: £48,000.
-
-{bullet} Rent deposit: £12,000.
+{table header}
+Item | Detail
+Property | Unit 7, Fernhill Trading Estate, together with the rights set out in Schedule 1
+Term | 10 years from and including the Term Commencement Date
+Initial annual rent | £48,000
+Rent deposit | £12,000
++ Break date | the fifth anniversary of the Term Commencement Date
++ Rent review date | each fifth anniversary of the Term Commencement Date
 
 {h1} Letting and rent
 
-{num} The Landlord lets the Property to the Tenant for a term of 10 years from and including the Term Commencement Date.
+{clause} The Landlord lets the Property to the Tenant for the term set out in the Particulars.
 
-{num} The Tenant shall pay the annual rent of £48,000 by equal quarterly payments in advance on the usual quarter days.
+{clause} The Tenant shall pay the annual rent by equal quarterly payments in advance on the usual quarter days.
 
-{num} The rent shall be reviewed on the fifth anniversary of the Term Commencement Date to the higher of the rent then payable and the open market rent.
+{clause} The rent shall be reviewed on the fifth anniversary of the Term Commencement Date to the higher of the rent then payable and the open market rent.
 
-{num} The Tenant shall pay a service charge equal to a fair proportion of the costs reasonably incurred by the Landlord in providing the Services to the Estate.
+{clause} The Tenant shall pay a service charge equal to a fair proportion of the costs reasonably incurred by the Landlord in providing the Services to the Estate.
 
 {h1} Tenant covenants
 
-{num} The Tenant shall keep the Property in good and substantial repair and condition, except for damage caused by an Insured Risk.
+{h2} Repair and alterations
 
-{num} The Tenant shall not make any structural alterations to the Property, and shall not make any other alterations without the consent of the Landlord, such consent not to be unreasonably withheld.
+{clause} The Tenant shall keep the Property in good and substantial repair and condition, except for damage caused by an Insured Risk.
 
-{num} The Tenant shall use the Property only for purposes within Class B2 or Class B8 of the Use Classes Order.
+{clause} The Tenant shall not make any structural alterations to the Property, and shall not make any other alterations without the consent of the Landlord, such consent not to be unreasonably withheld.
 
-{num} The Tenant shall not assign the whole of the Property without the consent of the Landlord, and shall not assign or underlet part only of the Property.
+{h2} Use and dealings
+
+{clause} The Tenant shall use the Property only for purposes within Class B2 or Class B8 of the Town and Country Planning (Use Classes) Order 1987.
+
+{clause} The Tenant shall not:
+
+{sub} assign the whole of the Property without the consent of the Landlord;
+
+{sub} assign or underlet part only of the Property; or
+
+{sub} share occupation of the Property with any person other than a group company.
 
 {h1} Insurance
 
-{num} The Landlord shall insure the Property against the Insured Risks for its full reinstatement cost, and the Tenant shall pay the Landlord on demand the insurance rent.
+{clause} The Landlord shall insure the Property against the Insured Risks for its full reinstatement cost, and the Tenant shall pay the Landlord on demand the insurance rent.
 
-{num} If the Property is damaged by an Insured Risk so as to be unfit for use, the rent shall be suspended until the Property is fit for use or for 3 years, whichever is shorter.
+{clause} If the Property is damaged by an Insured Risk so as to be unfit for use, the rent shall be suspended until the Property is fit for use or for 3 years, whichever is shorter.
 
 {h1} Break and re-entry
 
-{num} The Tenant may terminate this Lease on the fifth anniversary of the Term Commencement Date by giving the Landlord not less than 6 months' written notice, provided that it has paid all rent due.
+{clause} The Tenant may terminate this Lease on the fifth anniversary of the Term Commencement Date by giving the Landlord not less than 6 months' written notice, provided that it has paid all rent due.
 
-{num} The Landlord may re-enter the Property if any rent is unpaid for 21 days after becoming payable, or if the Tenant breaches any covenant in this Lease.
+{clause} The Landlord may re-enter the Property if any rent is unpaid for 21 days after becoming payable, or if the Tenant breaches any covenant in this Lease, and clause 5.1 shall not apply after re-entry.
 
 {h1} Deposit and law
 
-{num} The Tenant shall provide a rent deposit of £12,000, to be held by the Landlord in a designated account and returned within 28 days after the end of the Term.
+{clause} The Tenant shall provide the rent deposit, to be held by the Landlord in a designated account and returned within 28 days after the end of the Term.
 
-{num} This Lease is governed by the law of England and Wales.
+{clause} This Lease is governed by the law of England and Wales.
+
+{h1} Signatures
+
+Executed as a deed by Fernhill Estates Limited acting by [NAME], a director, in the presence of a witness.
+
+Executed as a deed by Quillon Print Works Ltd acting by [NAME], a director, in the presence of a witness.

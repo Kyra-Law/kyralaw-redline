@@ -45,7 +45,6 @@ import collections
 import difflib
 import io
 import json
-import re
 import statistics
 import sys
 import time
@@ -54,13 +53,12 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 from xml.etree import ElementTree
-
-from docx import Document
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import render
 from generate import CORPUS_PATH, STYLES, score_tokens
 
 from kyralaw_redline import (
@@ -161,24 +159,30 @@ class PairResult:
         return (self.insert.f1 + self.delete.f1) / 2
 
 
-# A defined term in quotes, bold as contracts usually set it: ("Supplier").
-_DEFINED_TERM_RE = re.compile(r"(“[^”]{1,60}”|\"[A-Z][^\"]{0,60}\")")
+def _docx(
+    blocks: list[str],
+    styles: list[str] | None = None,
+    cells: list[Any] | None = None,
+    layout: dict[str, str] | None = None,
+) -> bytes:
+    """One version of a pair as a real document; see eval/render.py."""
+    return render.render(blocks, styles, cells, layout)
 
 
-def _docx(blocks: list[str], styles: list[str] | None = None) -> bytes:
-    """A real document: each block in its paragraph style (Title, Heading 1,
-    List Number ...), with defined terms in bold, so the text an algorithm
-    reads is split across runs as it is in a drafted contract."""
-    doc = Document()
-    for n, block in enumerate(blocks):
-        style = STYLES[styles[n]] if styles else "Normal"
-        para = doc.add_paragraph(style=style)
-        for k, piece in enumerate(_DEFINED_TERM_RE.split(block)):
-            if piece:
-                para.add_run(piece).bold = k % 2 == 1
-    buf = io.BytesIO()
-    doc.save(buf)
-    return buf.getvalue()
+def _version(pair: dict[str, object], side: str) -> bytes:
+    """Render the old or new version and check it reads back as exactly the
+    corpus text. A renderer that changed the text would change the ground
+    truth under every algorithm, so it stops the run instead."""
+    blocks = pair[side]
+    assert isinstance(blocks, list)
+    styles, cells, layout = pair.get(f"{side}_styles"), pair.get(f"{side}_cells"), pair.get("layout")
+    assert styles is None or isinstance(styles, list)
+    assert cells is None or isinstance(cells, list)
+    assert layout is None or isinstance(layout, dict)
+    data = _docx(blocks, styles, cells, layout)
+    if extract_text(data) != "\n\n".join(b for b in blocks if b.strip()):
+        raise RuntimeError(f"{pair['id']}: the rendered {side} version does not read back as the corpus text")
+    return data
 
 
 def _accepted_styles(docx_bytes: bytes) -> list[str]:
@@ -233,10 +237,9 @@ def score_pair(pair: dict[str, object], algorithm: Algorithm, save_to: Path | No
     old = pair["old"]
     new = pair["new"]
     assert isinstance(old, list) and isinstance(new, list)
-    old_styles, new_styles = pair.get("old_styles"), pair.get("new_styles")
-    assert old_styles is None or isinstance(old_styles, list)
+    new_styles = pair.get("new_styles")
     assert new_styles is None or isinstance(new_styles, list)
-    old_docx, new_docx = _docx(old, old_styles), _docx(new, new_styles)
+    old_docx, new_docx = _version(pair, "old"), _version(pair, "new")
 
     start = time.perf_counter()
     out = algorithm(old_docx, new_docx)

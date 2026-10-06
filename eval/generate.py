@@ -12,7 +12,10 @@ edit is never edited again; a deleted paragraph's earlier in-paragraph edits
 are discarded, since the whole of its original text is what was deleted.
 
 Each base block may start with a style tag (``{h1} Definitions``; see STYLES),
-so pairs are styled documents and edits keep each paragraph's style.
+so pairs are styled documents and edits keep each paragraph's style. A
+``{table}`` block is a table, one row per line (spare rows, prefixed ``+ ``,
+are what row_insert adds), and a ``{layout}`` block says how render.py draws
+the document.
 
 Three families of pairs:
 
@@ -24,15 +27,15 @@ Three families of pairs:
 - ``mixed``: four to eight edits of random types, closer to a real round of
   negotiation.
 
-The output is committed (``eval/corpus/v2.jsonl``; ``v1.jsonl``, five
-unstyled documents, stays as the frozen first version) and the evaluation reads
+The output is committed (``eval/corpus/v3.jsonl``; ``v1`` and ``v2`` stay as
+frozen earlier versions) and the evaluation reads
 only that file, so a change to this generator never silently changes the
 benchmark. ``--check`` verifies that the committed file is what this
 generator produces, which CI runs.
 
 Usage::
 
-    python eval/generate.py            # rewrite eval/corpus/v2.jsonl
+    python eval/generate.py            # rewrite eval/corpus/v3.jsonl
     python eval/generate.py --check    # exit 1 if it would change
 """
 
@@ -48,7 +51,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CORPUS_VERSION = "v2"
+CORPUS_VERSION = "v3"
 EVAL_DIR = Path(__file__).resolve().parent
 BASE_DIR = EVAL_DIR / "base"
 CORPUS_PATH = EVAL_DIR / "corpus" / f"{CORPUS_VERSION}.jsonl"
@@ -65,6 +68,8 @@ EDIT_TYPES = (
     "paragraph_replace",
     "term_rename",
     "section_insert",
+    "row_insert",
+    "row_delete",
 )
 SINGLE_SEEDS_PER_TYPE = 2
 MIXED_PAIRS_PER_DOCUMENT = 6
@@ -148,12 +153,20 @@ STYLES = {
     "subtitle": "Subtitle",
     "h1": "Heading 1",
     "h2": "Heading 2",
+    "h3": "Heading 3",
+    "clause": "Clause",
+    "sub": "Sub-clause",
+    "subsub": "Sub-sub-clause",
+    "bullet": "List Bullet",
+    "cell": "Table Text",
+    "cellhead": "Table Heading",
+    # v2 tags, kept so the frozen v2 corpus still renders.
     "num": "List Number",
     "num2": "List Number 2",
-    "bullet": "List Bullet",
 }
 _STYLE_TAG_RE = re.compile(r"^\{([a-z0-9]+)\} ")
-BODY_STYLES = {"normal", "num", "num2", "bullet"}
+BODY_STYLES = {"normal", "clause", "sub", "subsub", "bullet", "num", "num2"}
+HEADING_STYLES = {"h1", "h2", "h3"}
 
 # Headings a section_insert adds, each paired with a clause from the pool.
 SECTION_HEADINGS = (
@@ -170,6 +183,17 @@ SECTION_HEADINGS = (
     "Costs",
     "Audit",
 )
+
+
+def parse_layout(blocks: list[str]) -> dict[str, str]:
+    """The ``{layout} key=value; key=value`` block of a base document: how it
+    is rendered (font, numbering scheme, header, footer, comments). Text is
+    unaffected, so the ground truth is too."""
+    for block in blocks:
+        if block.startswith("{layout} "):
+            pairs = [kv.split("=", 1) for kv in block[len("{layout} ") :].split(";") if kv.strip()]
+            return {k.strip(): v.strip() for k, v in pairs}
+    return {}
 
 
 def split_style(block: str) -> tuple[str, str]:
@@ -195,6 +219,7 @@ class Paragraph:
     old: str | None
     words: list[str]
     style: str = "normal"
+    cell: tuple[int, int, int] | None = None  # (table, row, column) for a table cell
     edits: list[tuple[str, str]] = field(default_factory=list)
     protected: set[int] = field(default_factory=set)
     locked: bool = False
@@ -227,14 +252,45 @@ class EditFailed(Exception):
 
 class Editor:
     def __init__(self, blocks: list[str], extra: list[str], rng: random.Random) -> None:
-        self.paras = []
+        self.paras: list[Paragraph] = []
+        # Rows a row_insert may add, per table, and the next free row id.
+        self.spare_rows: dict[int, list[list[str]]] = {}
+        self.next_row: dict[int, int] = {}
         for block in blocks:
+            if block.startswith("{layout} "):
+                continue
+            if block.startswith("{table"):
+                self._add_table(block)
+                continue
             style, text = split_style(block)
             self.paras.append(Paragraph(old=text, words=text.split(" "), style=style))
         texts = {p.old for p in self.paras}
         self.extra = [c for c in extra if c not in texts]
         self.rng = rng
         self.log: list[dict[str, object]] = []
+
+    def _add_table(self, block: str) -> None:
+        """A ``{table}`` (or ``{table header}``) block: one row per line,
+        cells separated by `` | ``. A line starting ``+ `` is a spare row,
+        not in the document, that a row_insert may add."""
+        lines = block.split("\n")
+        header = lines[0].strip() == "{table header}"
+        t = len(self.spare_rows)
+        self.spare_rows[t] = []
+        r = 0
+        for line in lines[1:]:
+            spare = line.startswith("+ ")
+            cells = [c.strip() for c in (line[2:] if spare else line).split(" | ")]
+            if any(not c for c in cells):
+                raise ValueError(f"empty cell in table row {line!r}")
+            if spare:
+                self.spare_rows[t].append(cells)
+                continue
+            for c, text in enumerate(cells):
+                style = "cellhead" if header and r == 0 else "cell"
+                self.paras.append(Paragraph(old=text, words=text.split(" "), style=style, cell=(t, r, c)))
+            r += 1
+        self.next_row[t] = r
 
     # Selection helpers ---------------------------------------------------
 
@@ -249,6 +305,21 @@ class Editor:
             for k, w in enumerate(p.words):
                 if k not in p.protected and predicate(w):
                     out.append((i, k))
+        return out
+
+    def _structural_body(self) -> list[int]:
+        """Editable paragraphs a whole-paragraph edit may delete or replace:
+        not table cells, which change only a row at a time."""
+        return [i for i in self._editable_body() if self.paras[i].cell is None]
+
+    def _between_paragraphs(self) -> list[int]:
+        """Positions a new paragraph may go: anywhere but inside a table."""
+        out = []
+        for at in range(1, len(self.paras) + 1):
+            before = self.paras[at - 1].cell
+            after = self.paras[at].cell if at < len(self.paras) else None
+            if not (before and after and before[0] == after[0]):
+                out.append(at)
         return out
 
     def _pick_word(self, targets: list[tuple[int, int]]) -> tuple[int, int]:
@@ -294,8 +365,11 @@ class Editor:
         old = _core(_NUMBER_RE, self.paras[i].words[k])
         new = old
         while new == old:
-            factor = self.rng.choice((0.5, 1.5, 2, 3))
-            new = str(max(1, round(int(old) * factor)))
+            if 1900 <= int(old) <= 2100:  # a year moves by a year or two, not threefold
+                new = str(int(old) + self.rng.choice((-1, 1, 2)))
+            else:
+                factor = self.rng.choice((0.5, 1.5, 2, 3))
+                new = str(max(1, round(int(old) * factor)))
         self._replace_core("number_change", i, k, _NUMBER_RE, new)
 
     def punctuation_change(self) -> None:
@@ -405,7 +479,7 @@ class Editor:
         for k in range(at - 1, -1, -1):
             if self.paras[k].style in BODY_STYLES:
                 return self.paras[k].style
-            if self.paras[k].style in ("h1", "h2"):
+            if self.paras[k].style in HEADING_STYLES or self.paras[k].cell:
                 break
         return "normal"
 
@@ -413,7 +487,7 @@ class Editor:
         """A new heading and a clause under it, inserted just before an
         existing heading of the same level (so it is a section of its own),
         or at the end when the document has no headings."""
-        headings = [i for i, p in enumerate(self.paras) if i > 0 and p.style in ("h1", "h2") and not p.deleted]
+        headings = [i for i, p in enumerate(self.paras) if i > 0 and p.style in HEADING_STYLES and not p.deleted]
         level = self.paras[headings[0]].style if headings else "h1"
         candidates = [i for i in headings if self.paras[i].style == level] or [len(self.paras)]
         at = self.rng.choice(candidates)
@@ -427,25 +501,69 @@ class Editor:
 
     def paragraph_insert(self) -> None:
         text = self._pop_extra()
-        at = self.rng.randint(1, len(self.paras))
+        at = self.rng.choice(self._between_paragraphs())
         self.paras.insert(at, Paragraph(old=None, words=text.split(" "), locked=True, style=self._body_style_at(at)))
         self._record("paragraph_insert", at, "", text)
 
     def paragraph_delete(self) -> None:
-        i = self._pick_paragraph(self._editable_body())
+        i = self._pick_paragraph(self._structural_body())
         p = self.paras[i]
         assert p.old is not None
         p.deleted = True
         self._record("paragraph_delete", i, p.old, "")
 
     def paragraph_replace(self) -> None:
-        i = self._pick_paragraph(self._editable_body())
+        i = self._pick_paragraph(self._structural_body())
         text = self._pop_extra()
         p = self.paras[i]
         assert p.old is not None
         p.deleted = True
         self.paras.insert(i + 1, Paragraph(old=None, words=text.split(" "), locked=True, style=p.style))
         self._record("paragraph_replace", i, p.old, text)
+
+    def _table_rows(self, t: int) -> list[list[int]]:
+        """Paragraph indices of table ``t``'s current rows, in order."""
+        rows: dict[int, list[int]] = {}
+        for i, p in enumerate(self.paras):
+            if p.cell and p.cell[0] == t and not p.deleted:
+                rows.setdefault(p.cell[1], []).append(i)
+        return list(rows.values())
+
+    def row_insert(self) -> None:
+        """A spare row of a table added after one of its existing rows."""
+        tables = [t for t, spare in self.spare_rows.items() if spare and self._table_rows(t)]
+        if not tables:
+            raise EditFailed
+        t = self.rng.choice(tables)
+        cells = self.spare_rows[t].pop(self.rng.randrange(len(self.spare_rows[t])))
+        rows = self._table_rows(t)
+        first = 1 if self.paras[rows[0][0]].style == "cellhead" else 0
+        after = self.rng.choice(rows[first:] or rows)
+        at = after[-1] + 1
+        r = self.next_row[t]
+        self.next_row[t] += 1
+        for c, text in enumerate(cells):
+            self.paras.insert(
+                at + c, Paragraph(old=None, words=text.split(" "), locked=True, style="cell", cell=(t, r, c))
+            )
+            self._record("row_insert", at + c, "", text)
+
+    def row_delete(self) -> None:
+        """A whole body row of a table deleted, leaving at least one."""
+        candidates: list[list[int]] = []
+        for t in self.spare_rows:
+            rows = self._table_rows(t)
+            body = [row for row in rows if self.paras[row[0]].style != "cellhead"]
+            if len(body) >= 2:
+                candidates.extend(row for row in body if all(self.paras[i].old is not None for i in row))
+        if not candidates:
+            raise EditFailed
+        row = self.rng.choice(candidates)
+        for i in row:
+            p = self.paras[i]
+            assert p.old is not None
+            p.deleted = True
+            self._record("row_delete", i, p.old, "")
 
     def term_rename(self) -> None:
         """Rename one defined term everywhere. Must run before other edits."""
@@ -471,6 +589,14 @@ class Editor:
             raise EditFailed
 
     # Output --------------------------------------------------------------
+
+    def cells(self) -> tuple[list[list[int] | None], list[list[int] | None]]:
+        """Each old and new block's table position, [table, row, column], or
+        None outside a table; parallel to result()."""
+        return (
+            [list(p.cell) if p.cell else None for p in self.paras if p.old is not None],
+            [list(p.cell) if p.cell else None for p in self.paras if not p.deleted],
+        )
 
     def styles(self) -> tuple[list[str], list[str]]:
         """The style of each old block and each new block, parallel to result()."""
@@ -515,6 +641,7 @@ def apply_edits(editor: Editor, types: list[str]) -> list[str]:
 def make_pair(
     pair_id: str, base: str, family: str, blocks: list[str], extra: list[str], types: list[str], seed: int
 ) -> dict[str, object] | None:
+    layout = parse_layout(blocks)
     editor = Editor(blocks, extra, random.Random(seed))
     applied = apply_edits(editor, types)
     if not applied:
@@ -533,6 +660,9 @@ def make_pair(
         "old": old,
         "old_styles": editor.styles()[0],
         "new_styles": editor.styles()[1],
+        "old_cells": editor.cells()[0],
+        "new_cells": editor.cells()[1],
+        "layout": layout,
         "new": new,
         "expected_deleted": deleted,
         "expected_inserted": inserted,

@@ -1,16 +1,19 @@
+{layout} font=Arial; size=10; numbering=simple; header=Tamsin Hollow Breweries Limited | Board resolutions; footer=page; comments=1
+
 {title} Written Resolutions of the Board
 
 {subtitle} Tamsin Hollow Breweries Limited (company number 07654321)
 
-The following resolutions were passed as written resolutions of the directors of the Company on 17 April 2025 in accordance with the articles of association of the Company.
+The following resolutions were passed as written resolutions of the directors of the Company on 17 April 2025 in accordance with the articles of association of the Company and section 248 of the Companies Act 2006.
 
-{h1} Present and consenting
+{h1} Directors
 
-{bullet} Edmund Rourke, chair
-
-{bullet} Hana Okafor, finance director
-
-{bullet} Lewis Penhaligon, non-executive director
+{table header}
+Director | Role | Date signed
+Edmund Rourke | Chair | 17 April 2025
+Hana Okafor | Finance director | 17 April 2025
+Lewis Penhaligon | Non-executive director | 18 April 2025
++ Mira Castellanos | Operations director | 18 April 2025
 
 {h1} Background
 
@@ -20,25 +23,29 @@ The directors noted that the Company proposes to acquire a new bottling line fro
 
 {h2} Approval of the acquisition
 
-{num} It was resolved that the acquisition of the bottling line on the terms of the draft purchase agreement presented to the directors be approved.
+{clause} It was resolved that the acquisition of the bottling line on the terms of the draft purchase agreement presented to the directors be approved.
 
-{num} It was resolved that any one director be authorised to sign the purchase agreement on behalf of the Company, with such amendments as that director considers appropriate.
+{clause} It was resolved that any one director be authorised to sign the purchase agreement on behalf of the Company, with such amendments as that director considers appropriate.
 
 {h2} Approval of the facility
 
-{num} It was resolved that the Company enter into a term loan facility of up to £400,000 with Dunmore Bank plc, repayable over 5 years.
+{clause} It was resolved that the Company enter into a term loan facility of up to £400,000 with Dunmore Bank plc, repayable over 5 years.
 
-{num} It was resolved that the Company grant a debenture in favour of Dunmore Bank plc as security for the facility.
+{clause} It was resolved that the Company grant a debenture in favour of Dunmore Bank plc as security for the facility.
 
-{num} It was resolved that the finance director be authorised to deliver any utilisation request under the facility.
+{clause} It was resolved that the finance director be authorised to deliver any utilisation request under the facility.
 
 {h2} Declarations of interest
 
-{num} Lewis Penhaligon declared that he is a shareholder in Severn Process Equipment Ltd, and the other directors resolved that he may nevertheless count in the quorum and vote on these resolutions.
+{clause} Lewis Penhaligon declared that he is a shareholder in Severn Process Equipment Ltd, and the other directors resolved that he may nevertheless count in the quorum and vote on these resolutions, as permitted by the articles of association.
 
 {h2} Filings
 
-{num} It was resolved that the company secretary be instructed to register the debenture at Companies House within 21 days of its creation.
+{clause} It was resolved that the company secretary be instructed to:
+
+{sub} register the debenture at Companies House within 21 days of its creation; and
+
+{sub} update the Company's statutory registers accordingly.
 
 {h1} Signatures
 

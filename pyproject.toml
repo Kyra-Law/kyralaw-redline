@@ -30,7 +30,8 @@ Repository = "https://github.com/Kyra-Law/kyralaw-redline"
 kyralaw-redline = "kyralaw_redline.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+# The eval renders Word comments, which python-docx supports from 1.2.
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "python-docx>=1.2.0"]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kyralaw_redline"]

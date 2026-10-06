@@ -1,3 +1,5 @@
+{layout} font=Times New Roman; size=11; numbering=legal; header=Software Licence Agreement; footer=page; comments=2
+
 {title} Software Licence Agreement
 
 {subtitle} Meridian Route Planner, on-premises edition
@@ -8,72 +10,89 @@ This Agreement is made on 9 June 2025 between Kestrel Mapping Software Limited (
 
 {h2} Definitions
 
-{num} "Documentation" means the user guides and technical manuals for the Software that the Licensor makes available to the Licensee.
+{clause} "Documentation" means the user guides and technical manuals for the Software that the Licensor makes available to the Licensee.
 
-{num} "Licence Fee" means the fee set out in the Order Form.
+{clause} "Licence Fee" means the fee set out in the Order Form.
 
-{num} "Software" means the Meridian Route Planner software in object code form, including any updates supplied under this Agreement.
+{clause} "Software" means the Meridian Route Planner software in object code form, including any updates supplied under this Agreement.
 
-{num} "Users" means the employees of the Licensee who are permitted to use the Software, up to the number stated in the Order Form.
+{clause} "Users" means the employees of the Licensee who are permitted to use the Software, up to the number stated in the Order Form.
 
 {h2} Interpretation
 
-{num} A reference to a statute is a reference to it as amended or re-enacted from time to time.
+{clause} A reference to a statute is a reference to it as amended or re-enacted from time to time.
 
-{num} Words such as including and in particular are illustrative and do not limit the words before them.
+{clause} Words such as including and in particular are illustrative and do not limit the words before them, ejusdem generis notwithstanding.
 
 {h1} Grant of licence
 
 {h2} Scope
 
-{num} The Licensor grants the Licensee a non-exclusive, non-transferable licence to install and use the Software on servers located in the United Kingdom for its internal business purposes.
+{clause} The Licensor grants the Licensee a non-exclusive, non-transferable licence to install and use the Software on servers located in the United Kingdom for its internal business purposes.
 
-{num} The Licensee may make one copy of the Software for back-up purposes only.
+{clause} The licence covers the modules in the table below, for the number of Users shown against each.
+
+{table header}
+Module | Users | Annual fee
+Route optimisation | 25 | £18,000
+Fleet tracking | 40 | £9,500
++ Driver mobile app | 60 | £6,000
++ Carbon reporting | 10 | £4,200
+
+{clause} The Licensee may make one copy of the Software for back-up purposes only.
 
 {h2} Restrictions
 
-{num} The Licensee shall not:
+{clause} The Licensee shall not:
 
-{num2} sublicense, rent or lend the Software to any third party;
+{sub} sublicense, rent or lend the Software to any third party;
 
-{num2} modify, adapt or translate the Software;
+{sub} modify, adapt or translate the Software;
 
-{num2} decompile or disassemble the Software, except to the extent permitted by law; or
+{sub} decompile or disassemble the Software, except to the extent permitted by section 50B of the Copyright, Designs and Patents Act 1988; or
 
-{num2} use the Software for more than the number of Users stated in the Order Form.
+{sub} use the Software:
+
+{subsub} for more than the number of Users stated in the table in clause 2.2; or
+
+{subsub} on behalf of any person other than the Licensee.
 
 {h1} Fees
 
-{num} The Licensee shall pay the Licence Fee within 30 days of the date of the Licensor's invoice.
+{clause} The Licensee shall pay the Licence Fee within 30 days of the date of the Licensor's invoice.
 
-{num} The annual maintenance fee is 18% of the Licence Fee and is payable in advance on each anniversary of the date of this Agreement.
+{clause} The annual maintenance fee is 18% of the Licence Fee and is payable in advance on each anniversary of the date of this Agreement.
 
 {h1} Support and maintenance
 
-{num} The Licensor shall provide telephone and email support during Business Hours and shall use reasonable endeavours to correct any reproducible error within 10 Business Days of its report.
+{h3} Support
 
-{num} The Licensor shall supply updates to the Software when they become generally available to its customers.
+{clause} The Licensor shall provide telephone and email support during Business Hours at support@kestrel.example.com and shall use reasonable endeavours to correct any reproducible error within 10 Business Days of its report.
+
+{h3} Updates
+
+{clause} The Licensor shall supply updates to the Software when they become generally available to its customers.
 
 {h1} Warranties
 
-{num} The Licensor warrants that for 90 days from installation the Software will perform substantially in accordance with the Documentation.
+{clause} The Licensor warrants that for 90 days from installation the Software will perform substantially in accordance with the Documentation.
 
-{num} The Licensee's sole remedy for breach of that warranty is for the Licensor to correct the Software or, if it cannot, to refund the Licence Fee.
+{clause} The Licensee's sole remedy for breach of the warranty in clause 5.1 is for the Licensor to correct the Software or, if it cannot, to refund the Licence Fee.
 
 {h1} Liability
 
-{num} The Licensor's total liability under this Agreement shall not exceed the Licence Fee paid.
+{clause} The Licensor's total liability under this Agreement shall not exceed the Licence Fee paid.
 
-{num} Neither party shall be liable for any loss of profits, loss of data or indirect loss.
+{clause} Neither party shall be liable for any loss of profits, loss of data or indirect loss.
 
 {h1} Term and termination
 
-{num} This Agreement continues until terminated in accordance with this clause.
+{clause} This Agreement continues until terminated in accordance with this clause.
 
-{num} Either party may terminate this Agreement immediately by notice if the other party commits a material breach that is not remedied within 30 days of a notice requiring it to be remedied.
+{clause} Either party may terminate this Agreement immediately by notice if the other party commits a material breach that is not remedied within 30 days of a notice requiring it to be remedied.
 
-{num} On termination the Licensee shall stop using the Software and shall destroy all copies of it in its possession.
+{clause} On termination the Licensee shall stop using the Software and shall destroy all copies of it in its possession.
 
 {h1} Governing law
 
-{num} This Agreement is governed by the law of England and Wales.
+{clause} This Agreement is governed by the law of England and Wales.

@@ -112,6 +112,7 @@ dependencies = [
 dev = [
     { name = "mypy" },
     { name = "pytest" },
+    { name = "python-docx" },
     { name = "ruff" },
 ]
 
@@ -122,6 +123,7 @@ requires-dist = [{ name = "python-docx", specifier = ">=1.1.0" }]
 dev = [
     { name = "mypy", specifier = ">=1.11" },
     { name = "pytest", specifier = ">=8" },
+    { name = "python-docx", specifier = ">=1.2.0" },
     { name = "ruff", specifier = ">=0.6" },
 ]
 
