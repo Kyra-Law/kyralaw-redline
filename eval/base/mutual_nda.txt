@@ -16,6 +16,18 @@ Copperfield Robotics Ltd ("Copperfield") | SC000123 | 2 Harbour Road, Leith EH6 
 
 Each party wishes to disclose certain Confidential Information to the other for the purpose of evaluating a possible joint development of warehouse automation software (the "Purpose").
 
+The parties expect to exchange, in particular:
+
+{bullet} warehouse layout drawings and site surveys;
+
+{bullet} robot control software interfaces, including:
+
+{bullet2} application programming interfaces;
+
+{bullet2} message formats and test harnesses;
+
+{bullet} performance data from pilot sites.
+
 {h1} Definitions
 
 {clause} "Confidential Information" means all information of a confidential nature disclosed by one party to the other, whether in writing, orally or by any other means, including:

@@ -27,7 +27,7 @@ Three families of pairs:
 - ``mixed``: four to eight edits of random types, closer to a real round of
   negotiation.
 
-The output is committed (``eval/corpus/v3.jsonl``; ``v1`` and ``v2`` stay as
+The output is committed (``eval/corpus/v4.jsonl``; ``v1`` to ``v3`` stay as
 frozen earlier versions) and the evaluation reads
 only that file, so a change to this generator never silently changes the
 benchmark. ``--check`` verifies that the committed file is what this
@@ -35,7 +35,7 @@ generator produces, which CI runs.
 
 Usage::
 
-    python eval/generate.py            # rewrite eval/corpus/v3.jsonl
+    python eval/generate.py            # rewrite eval/corpus/v4.jsonl
     python eval/generate.py --check    # exit 1 if it would change
 """
 
@@ -51,7 +51,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CORPUS_VERSION = "v3"
+CORPUS_VERSION = "v4"
 EVAL_DIR = Path(__file__).resolve().parent
 BASE_DIR = EVAL_DIR / "base"
 CORPUS_PATH = EVAL_DIR / "corpus" / f"{CORPUS_VERSION}.jsonl"
@@ -70,6 +70,8 @@ EDIT_TYPES = (
     "section_insert",
     "row_insert",
     "row_delete",
+    "list_item_insert",
+    "list_item_delete",
 )
 SINGLE_SEEDS_PER_TYPE = 2
 MIXED_PAIRS_PER_DOCUMENT = 6
@@ -158,6 +160,9 @@ STYLES = {
     "sub": "Sub-clause",
     "subsub": "Sub-sub-clause",
     "bullet": "List Bullet",
+    "bullet2": "List Bullet 2",
+    "item": "List Number",
+    "item2": "List Number 2",
     "cell": "Table Text",
     "cellhead": "Table Heading",
     # v2 tags, kept so the frozen v2 corpus still renders.
@@ -165,7 +170,22 @@ STYLES = {
     "num2": "List Number 2",
 }
 _STYLE_TAG_RE = re.compile(r"^\{([a-z0-9]+)\} ")
-BODY_STYLES = {"normal", "clause", "sub", "subsub", "bullet", "num", "num2"}
+BODY_STYLES = {"normal", "clause", "sub", "subsub", "bullet", "bullet2", "item", "item2", "num", "num2"}
+LIST_STYLES = {"bullet", "bullet2", "item", "item2"}
+
+# Short items a list_item_insert adds to a bulleted or numbered list.
+LIST_ITEMS = (
+    "any replacement or successor system;",
+    "copies held in electronic back-up archives;",
+    "reports prepared for the board;",
+    "all associated documentation;",
+    "any sub-contractor engaged with consent;",
+    "minutes of steering committee meetings;",
+    "information supplied before the date of this Agreement;",
+    "the agreed project plan;",
+    "any variation agreed in writing;",
+    "test results and acceptance certificates;",
+)
 HEADING_STYLES = {"h1", "h2", "h3"}
 
 # Headings a section_insert adds, each paired with a clause from the pool.
@@ -266,6 +286,7 @@ class Editor:
             self.paras.append(Paragraph(old=text, words=text.split(" "), style=style))
         texts = {p.old for p in self.paras}
         self.extra = [c for c in extra if c not in texts]
+        self.list_items = [t for t in LIST_ITEMS if t not in texts]
         self.rng = rng
         self.log: list[dict[str, object]] = []
 
@@ -520,6 +541,38 @@ class Editor:
         p.deleted = True
         self.paras.insert(i + 1, Paragraph(old=None, words=text.split(" "), locked=True, style=p.style))
         self._record("paragraph_replace", i, p.old, text)
+
+    def _list_paragraphs(self) -> list[int]:
+        return [i for i, p in enumerate(self.paras) if p.style in LIST_STYLES and not p.deleted]
+
+    def list_item_insert(self) -> None:
+        """A new item in an existing bulleted or numbered list, at the level of
+        the item it follows. In a numbered list every later item renumbers,
+        which changes no text: the numbers come from the list definition."""
+        candidates = self._list_paragraphs()
+        if not candidates or not self.list_items:
+            raise EditFailed
+        i = self.rng.choice(candidates)
+        text = self.list_items.pop(self.rng.randrange(len(self.list_items)))
+        self.paras.insert(i + 1, Paragraph(old=None, words=text.split(" "), locked=True, style=self.paras[i].style))
+        self._record("list_item_insert", i + 1, "", text)
+
+    def list_item_delete(self) -> None:
+        """One item deleted from a list that keeps at least one other."""
+        candidates = [
+            i
+            for i in self._list_paragraphs()
+            if self.paras[i].editable
+            and any(
+                0 <= j < len(self.paras) and self.paras[j].style in LIST_STYLES and not self.paras[j].deleted
+                for j in (i - 1, i + 1)
+            )
+        ]
+        i = self._pick_paragraph(candidates)
+        p = self.paras[i]
+        assert p.old is not None
+        p.deleted = True
+        self._record("list_item_delete", i, p.old, "")
 
     def _table_rows(self, t: int) -> list[list[int]]:
         """Paragraph indices of table ``t``'s current rows, in order."""

@@ -73,6 +73,14 @@ Fleet tracking | 40 | £9,500
 
 {clause} The Licensor shall supply updates to the Software when they become generally available to its customers.
 
+{clause} Support does not cover errors caused by:
+
+{bullet} use of the Software other than in accordance with the Documentation;
+
+{bullet} modifications not made by the Licensor; or
+
+{bullet} hardware or third-party software, including operating systems.
+
 {h1} Warranties
 
 {clause} The Licensor warrants that for 90 days from installation the Software will perform substantially in accordance with the Documentation.
@@ -92,6 +100,14 @@ Fleet tracking | 40 | £9,500
 {clause} Either party may terminate this Agreement immediately by notice if the other party commits a material breach that is not remedied within 30 days of a notice requiring it to be remedied.
 
 {clause} On termination the Licensee shall stop using the Software and shall destroy all copies of it in its possession.
+
+Within 14 days of termination the Licensee shall:
+
+{item} return any Documentation in physical form;
+
+{item} delete the Software from all servers and back-up media; and
+
+{item} certify to the Licensor in writing that it has done so.
 
 {h1} Governing law
 

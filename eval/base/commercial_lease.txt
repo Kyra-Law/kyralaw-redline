@@ -35,6 +35,14 @@ Rent deposit | £12,000
 
 {clause} The Tenant shall not make any structural alterations to the Property, and shall not make any other alterations without the consent of the Landlord, such consent not to be unreasonably withheld.
 
+The Tenant may carry out the following works without consent:
+
+{bullet} internal non-structural partitioning;
+
+{bullet} installation of racking that is not fixed to the structure; and
+
+{bullet} the display of signs within the Property.
+
 {h2} Use and dealings
 
 {clause} The Tenant shall use the Property only for purposes within Class B2 or Class B8 of the Town and Country Planning (Use Classes) Order 1987.

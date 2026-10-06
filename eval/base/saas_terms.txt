@@ -43,6 +43,14 @@ Priority 3 | 1 Business Day | 10 Business Days
 
 {clause} The Supplier shall back up Customer Data daily and retain each backup for 30 days.
 
+{clause} The Supplier shall maintain security measures appropriate to the risk, including:
+
+{bullet} encryption of Customer Data at rest and in transit;
+
+{bullet} role-based access controls with multi-factor authentication;
+
+{bullet} annual penetration testing by an independent tester.
+
 {h1} Fees and term
 
 {clause} The Customer shall pay the Subscription Fees annually in advance, and the Supplier may increase the Subscription Fees on each anniversary of the Start Date by not more than 5%.

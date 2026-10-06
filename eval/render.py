@@ -11,7 +11,9 @@ multi-level legal numbering, most are justified with explicit spacing, many
 carry comments, a third have headers and footers with page fields):
 
 - paragraph styles: Title (all caps), Subtitle, Heading 1 to 3, custom
-  Clause / Sub-clause / Sub-sub-clause styles, List Bullet, table styles;
+  Clause / Sub-clause / Sub-sub-clause styles, table styles;
+- itemised lists: bullets at two levels, and numbered items 1) / a) that
+  restart at 1 in each list, all as direct numbering;
 - direct multi-level numbering on each paragraph (``w:numPr``), either legal
   (1. / 1.1 / (a) / (i), headings numbered) or simple (1. / (a) / (i));
 - tables with a repeating header row;
@@ -182,18 +184,20 @@ _FORMATS = {
 }
 
 
-def _setup_numbering(doc: Any, scheme: str) -> int | None:
-    """A multi-level list definition for ``scheme``; returns its numId."""
-    if scheme not in _FORMATS:
-        return None
-    numbering = doc.part.numbering_part.element
-    abstract_id = 90
+# Itemised lists, independent of the clause numbering: bullets at two levels,
+# and numbered items "1)" with a nested "a)" level that restart in each list.
+_LIST_LEVELS = {"bullet": 0, "bullet2": 1, "item": 0, "item2": 1}
+_BULLET_FORMATS = [("bullet", "\u2022"), ("bullet", "\u2013")]
+_ITEM_FORMATS = [("decimal", "%1)"), ("lowerLetter", "%2)")]
+
+
+def _add_abstract(numbering: Any, abstract_id: int, formats: list[tuple[str, str]], left: int, hanging: int) -> None:
     abstract = OxmlElement("w:abstractNum")
     abstract.set(qn("w:abstractNumId"), str(abstract_id))
     mlt = OxmlElement("w:multiLevelType")
-    mlt.set(qn("w:val"), "multilevel")
+    mlt.set(qn("w:val"), "multilevel" if formats[0][0] != "bullet" else "hybridMultilevel")
     abstract.append(mlt)
-    for ilvl, (fmt, text) in enumerate(_FORMATS[scheme]):
+    for ilvl, (fmt, text) in enumerate(formats):
         lvl = OxmlElement("w:lvl")
         lvl.set(qn("w:ilvl"), str(ilvl))
         for tag, val in (("w:start", "1"), ("w:numFmt", fmt), ("w:lvlText", text), ("w:lvlJc", "left")):
@@ -202,8 +206,8 @@ def _setup_numbering(doc: Any, scheme: str) -> int | None:
             lvl.append(el)
         ppr = OxmlElement("w:pPr")
         ind = OxmlElement("w:ind")
-        ind.set(qn("w:left"), str(720 * (ilvl + 1)))
-        ind.set(qn("w:hanging"), "720")
+        ind.set(qn("w:left"), str(left + 720 * ilvl))
+        ind.set(qn("w:hanging"), str(hanging))
         ppr.append(ind)
         lvl.append(ppr)
         abstract.append(lvl)
@@ -213,14 +217,39 @@ def _setup_numbering(doc: Any, scheme: str) -> int | None:
         first_num.addprevious(abstract)
     else:
         numbering.append(abstract)
-    num_id = 90
+
+
+def _add_num(numbering: Any, num_id: int, abstract_id: int, *, restart: bool = False) -> int:
+    """A list instance of ``abstract_id``. ``restart`` makes it count from 1
+    again, which is how Word starts a second numbered list in a document."""
     num = OxmlElement("w:num")
     num.set(qn("w:numId"), str(num_id))
     ref = OxmlElement("w:abstractNumId")
     ref.set(qn("w:val"), str(abstract_id))
     num.append(ref)
+    if restart:
+        for ilvl in range(len(_ITEM_FORMATS)):
+            override = OxmlElement("w:lvlOverride")
+            override.set(qn("w:ilvl"), str(ilvl))
+            start = OxmlElement("w:startOverride")
+            start.set(qn("w:val"), "1")
+            override.append(start)
+            num.append(override)
     numbering.append(num)
     return num_id
+
+
+def _setup_numbering(doc: Any, scheme: str) -> int | None:
+    """List definitions for the clause ``scheme`` and for itemised lists;
+    returns the clause numbering's numId (None without a scheme)."""
+    numbering = doc.part.numbering_part.element
+    _add_abstract(numbering, 91, _BULLET_FORMATS, left=1440, hanging=360)
+    _add_num(numbering, 91, 91)
+    _add_abstract(numbering, 92, _ITEM_FORMATS, left=1440, hanging=360)
+    if scheme not in _FORMATS:
+        return None
+    _add_abstract(numbering, 90, _FORMATS[scheme], left=720, hanging=720)
+    return _add_num(numbering, 90, 90)
 
 
 def _number(paragraph: Any, num_id: int, ilvl: int) -> None:
@@ -473,6 +502,7 @@ def render(
     # Bookmark every top-level heading; cross-references point at them.
     bookmarks = [f"_Ref{n:03d}" for n, s in enumerate(styles) if s == "h1"] if rich else []
     heading_count = 0
+    item_list = 0
     commentable: list[Any] = []
 
     ids = [0]
@@ -523,6 +553,12 @@ def render(
         para = doc.add_paragraph(style=doc.styles[STYLES[style]])
         if rich and num_id is not None and style in _LEVELS.get(scheme, {}):
             _number(para, num_id, _LEVELS[scheme][style])
+        if rich and style in ("bullet", "bullet2"):
+            _number(para, 91, _LIST_LEVELS[style])
+        elif rich and style in ("item", "item2"):
+            if n == 0 or styles[n - 1] not in ("item", "item2"):
+                item_list = _add_num(doc.part.numbering_part.element, 100 + n, 92, restart=True)
+            _number(para, item_list, _LIST_LEVELS[style])
         if rich and style == "h1" and blocks[n].startswith(("Signature", "Schedule")):
             para.paragraph_format.page_break_before = True
         fill(para, n)
