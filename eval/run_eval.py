@@ -45,20 +45,23 @@ import collections
 import difflib
 import io
 import json
+import re
 import statistics
 import sys
 import time
+import zipfile
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Literal
+from xml.etree import ElementTree
 
 from docx import Document
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from generate import CORPUS_PATH, score_tokens
+from generate import CORPUS_PATH, STYLES, score_tokens
 
 from kyralaw_redline import (
     DiffSegment,
@@ -151,19 +154,70 @@ class PairResult:
     delete: PRF
     seconds: float
     integrity_errors: list[str] = field(default_factory=list)
+    styles_kept: float = 0.0
 
     @property
     def score(self) -> float:
         return (self.insert.f1 + self.delete.f1) / 2
 
 
-def _docx(blocks: list[str]) -> bytes:
+# A defined term in quotes, bold as contracts usually set it: ("Supplier").
+_DEFINED_TERM_RE = re.compile(r"(“[^”]{1,60}”|\"[A-Z][^\"]{0,60}\")")
+
+
+def _docx(blocks: list[str], styles: list[str] | None = None) -> bytes:
+    """A real document: each block in its paragraph style (Title, Heading 1,
+    List Number ...), with defined terms in bold, so the text an algorithm
+    reads is split across runs as it is in a drafted contract."""
     doc = Document()
-    for block in blocks:
-        doc.add_paragraph(block)
+    for n, block in enumerate(blocks):
+        style = STYLES[styles[n]] if styles else "Normal"
+        para = doc.add_paragraph(style=style)
+        for k, piece in enumerate(_DEFINED_TERM_RE.split(block)):
+            if piece:
+                para.add_run(piece).bold = k % 2 == 1
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
+
+
+def _accepted_styles(docx_bytes: bytes) -> list[str]:
+    """The style name of each paragraph in the accepted view, with the same
+    merging as extract_paragraphs: a paragraph whose mark is a pending
+    deletion runs on into the next one, which keeps the next one's style."""
+    w = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+    with zipfile.ZipFile(io.BytesIO(docx_bytes)) as z:
+        root = ElementTree.fromstring(z.read("word/document.xml"))
+        names: dict[str, str] = {}
+        default = "Normal"
+        if "word/styles.xml" in z.namelist():
+            for st in ElementTree.fromstring(z.read("word/styles.xml")).iter(f"{w}style"):
+                name = st.find(f"{w}name")
+                sid = st.get(f"{w}styleId") or ""
+                names[sid] = name.get(f"{w}val", sid) if name is not None else sid
+                if st.get(f"{w}type") == "paragraph" and st.get(f"{w}default") == "1":
+                    default = names[sid]
+    out: list[str] = []
+    body = root.find(f"{w}body")
+    assert body is not None
+    for p in body.iter(f"{w}p"):
+        ppr = p.find(f"{w}pPr")
+        if ppr is not None and ppr.find(f"{w}rPr/{w}del") is not None:
+            continue
+        pstyle = ppr.find(f"{w}pStyle") if ppr is not None else None
+        out.append(names.get(pstyle.get(f"{w}val", ""), default) if pstyle is not None else default)
+    return out
+
+
+def styles_kept(docx_bytes: bytes, expected: list[str]) -> float:
+    """Share of the new version's paragraphs whose style the redline keeps,
+    position by position in the accepted view. Informational: not part of
+    the score, which measures text."""
+    if not expected:
+        return 1.0
+    got = _accepted_styles(docx_bytes)
+    want = [STYLES[s] for s in expected]
+    return sum(1 for g, e in zip(got, want, strict=False) if g == e) / len(want)
 
 
 def _paragraphs(docx: bytes, view: Literal["accepted", "original"]) -> list[str]:
@@ -179,7 +233,10 @@ def score_pair(pair: dict[str, object], algorithm: Algorithm, save_to: Path | No
     old = pair["old"]
     new = pair["new"]
     assert isinstance(old, list) and isinstance(new, list)
-    old_docx, new_docx = _docx(old), _docx(new)
+    old_styles, new_styles = pair.get("old_styles"), pair.get("new_styles")
+    assert old_styles is None or isinstance(old_styles, list)
+    assert new_styles is None or isinstance(new_styles, list)
+    old_docx, new_docx = _docx(old, old_styles), _docx(new, new_styles)
 
     start = time.perf_counter()
     out = algorithm(old_docx, new_docx)
@@ -213,6 +270,7 @@ def score_pair(pair: dict[str, object], algorithm: Algorithm, save_to: Path | No
         delete=prf(score_tokens(deleted), score_tokens(expected_deleted)),
         seconds=seconds,
         integrity_errors=errors,
+        styles_kept=styles_kept(out, new_styles or ["normal"] * len(new)),
     )
 
 
@@ -232,6 +290,7 @@ def summarise(results: list[PairResult]) -> dict[str, float]:
         "delete_precision": _mean([r.delete.precision for r in results]),
         "pairs": float(len(results)),
         "integrity_failures": float(sum(1 for r in results if r.integrity_errors)),
+        "styles_kept": _mean([r.styles_kept for r in results]),
         "seconds_total": sum(r.seconds for r in results),
     }
 
@@ -239,15 +298,16 @@ def summarise(results: list[PairResult]) -> dict[str, float]:
 def report(all_results: dict[str, list[PairResult]], corpus: str) -> str:
     lines = [f"# Redline eval, corpus `{corpus}`", ""]
     lines += [
-        "| Algorithm | Score | Insert F1 | Delete F1 | Insert P | Delete P | Integrity failures | Time (s) |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Algorithm | Score | Insert F1 | Delete F1 | Insert P | Delete P | Integrity failures | Styles kept "
+        "| Time (s) |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for name, results in all_results.items():
         s = summarise(results)
         lines.append(
             f"| {name} | {s['score']:.2f} | {s['insert_f1']:.3f} | {s['delete_f1']:.3f} | "
             f"{s['insert_precision']:.3f} | {s['delete_precision']:.3f} | "
-            f"{int(s['integrity_failures'])}/{int(s['pairs'])} | {s['seconds_total']:.2f} |"
+            f"{int(s['integrity_failures'])}/{int(s['pairs'])} | {s['styles_kept']:.1%} | {s['seconds_total']:.2f} |"
         )
 
     edit_types = sorted({t for rs in all_results.values() for r in rs if r.family == "single" for t in r.edit_types})

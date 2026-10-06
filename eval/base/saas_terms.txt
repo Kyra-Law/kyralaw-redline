@@ -1,31 +1,49 @@
-SOFTWARE SUBSCRIPTION TERMS
+{title} Software Subscription Terms
+
+{subtitle} Brightwater Scheduling platform
 
 These Terms apply to the subscription by the Customer to the Brightwater Scheduling platform supplied by Brightwater Systems Limited (the "Supplier").
 
-The Supplier grants the Customer a non-exclusive, non-transferable right during the Subscription Term to permit the Authorised Users to use the Platform solely for the Customer's internal business operations.
+{h1} Licence
 
-The Customer shall not permit more than the number of Authorised Users stated in the Order Form to access the Platform at any time.
+{num} The Supplier grants the Customer a non-exclusive, non-transferable right during the Subscription Term to permit the Authorised Users to use the Platform solely for the Customer's internal business operations.
 
-The Customer shall not copy, modify, reverse engineer or create derivative works of the Platform, except to the extent expressly permitted by law.
+{num} The Customer shall not permit more than the number of Authorised Users stated in the Order Form to access the Platform at any time.
 
-The Supplier shall use commercially reasonable endeavours to make the Platform available 99.5% of the time in each calendar month, excluding planned maintenance notified at least 48 hours in advance.
+{num} The Customer shall not:
 
-The Supplier shall provide support by email between 9am and 5pm on Business Days and shall respond to priority one incidents within 4 hours.
+{bullet} copy, modify or create derivative works of the Platform;
 
-The Customer owns all Customer Data and grants the Supplier a licence to use it only to the extent necessary to provide the Platform and the support services.
+{bullet} reverse engineer or decompile the Platform, except to the extent expressly permitted by law; or
 
-The Supplier shall process personal data on behalf of the Customer only on the Customer's documented instructions and in accordance with the data processing terms in Schedule 2.
+{bullet} use the Platform to provide services to third parties.
 
-The Supplier shall back up Customer Data daily and retain each backup for 30 days.
+{h1} Service levels
 
-The Customer shall pay the Subscription Fees annually in advance, and the Supplier may increase the Subscription Fees on each anniversary of the Start Date by not more than 5%.
+{num} The Supplier shall use commercially reasonable endeavours to make the Platform available 99.5% of the time in each calendar month, excluding planned maintenance notified at least 48 hours in advance.
 
-The Subscription Term starts on the Start Date and continues for an initial period of 24 months, after which it renews automatically for successive periods of 12 months unless either party gives at least 90 days' notice before the end of the current period.
+{num} The Supplier shall provide support by email between 9am and 5pm on Business Days and shall respond to priority one incidents within 4 hours.
 
-The Supplier may suspend access to the Platform if any undisputed Subscription Fees remain unpaid for more than 30 days after the due date.
+{h1} Customer Data
 
-On termination, the Supplier shall make the Customer Data available for export for 30 days, after which it may delete it.
+{num} The Customer owns all Customer Data and grants the Supplier a licence to use it only to the extent necessary to provide the Platform and the support services.
 
-The Supplier's aggregate liability in each contract year shall not exceed the Subscription Fees paid in that year.
+{num} The Supplier shall process personal data on behalf of the Customer only on the Customer's documented instructions and in accordance with the data processing terms in Schedule 2.
 
-These Terms are governed by the law of England and Wales.
+{num} The Supplier shall back up Customer Data daily and retain each backup for 30 days.
+
+{h1} Fees and term
+
+{num} The Customer shall pay the Subscription Fees annually in advance, and the Supplier may increase the Subscription Fees on each anniversary of the Start Date by not more than 5%.
+
+{num} The Subscription Term starts on the Start Date and continues for an initial period of 24 months, after which it renews automatically for successive periods of 12 months unless either party gives at least 90 days' notice before the end of the current period.
+
+{num} The Supplier may suspend access to the Platform if any undisputed Subscription Fees remain unpaid for more than 30 days after the due date.
+
+{num} On termination, the Supplier shall make the Customer Data available for export for 30 days, after which it may delete it.
+
+{h1} Liability and law
+
+{num} The Supplier's aggregate liability in each contract year shall not exceed the Subscription Fees paid in that year.
+
+{num} These Terms are governed by the law of England and Wales.

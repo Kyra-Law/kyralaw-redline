@@ -11,7 +11,10 @@ protects the words it changed from later edits; a paragraph inserted by one
 edit is never edited again; a deleted paragraph's earlier in-paragraph edits
 are discarded, since the whole of its original text is what was deleted.
 
-Two families of pairs:
+Each base block may start with a style tag (``{h1} Definitions``; see STYLES),
+so pairs are styled documents and edits keep each paragraph's style.
+
+Three families of pairs:
 
 - ``single``: exactly one edit type per pair, so scores can be broken down by
   edit type.
@@ -21,14 +24,15 @@ Two families of pairs:
 - ``mixed``: four to eight edits of random types, closer to a real round of
   negotiation.
 
-The output is committed (``eval/corpus/v1.jsonl``) and the evaluation reads
+The output is committed (``eval/corpus/v2.jsonl``; ``v1.jsonl``, five
+unstyled documents, stays as the frozen first version) and the evaluation reads
 only that file, so a change to this generator never silently changes the
 benchmark. ``--check`` verifies that the committed file is what this
 generator produces, which CI runs.
 
 Usage::
 
-    python eval/generate.py            # rewrite eval/corpus/v1.jsonl
+    python eval/generate.py            # rewrite eval/corpus/v2.jsonl
     python eval/generate.py --check    # exit 1 if it would change
 """
 
@@ -44,7 +48,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-CORPUS_VERSION = "v1"
+CORPUS_VERSION = "v2"
 EVAL_DIR = Path(__file__).resolve().parent
 BASE_DIR = EVAL_DIR / "base"
 CORPUS_PATH = EVAL_DIR / "corpus" / f"{CORPUS_VERSION}.jsonl"
@@ -60,6 +64,7 @@ EDIT_TYPES = (
     "paragraph_delete",
     "paragraph_replace",
     "term_rename",
+    "section_insert",
 )
 SINGLE_SEEDS_PER_TYPE = 2
 MIXED_PAIRS_PER_DOCUMENT = 6
@@ -120,6 +125,9 @@ TERM_RENAMES = {
     "Platform": "Service",
     "Purpose": "Project",
     "Property": "Premises",
+    "Licensor": "Vendor",
+    "Licensee": "Purchaser",
+    "Company": "Business",
 }
 
 # Scoring tokens: lowercase words and single punctuation characters. Shared
@@ -132,16 +140,61 @@ _WORD_CORE_RE = re.compile(r"^(\W*)(\w+)(\W*)$", re.UNICODE)
 _NUMBER_RE = re.compile(r"^(\W*)(\d+)(\W*)$")
 
 
+# Paragraph styles a base document can mark a block with, as "{tag} text",
+# and the Word style each renders as. Untagged blocks are "normal".
+STYLES = {
+    "normal": "Normal",
+    "title": "Title",
+    "subtitle": "Subtitle",
+    "h1": "Heading 1",
+    "h2": "Heading 2",
+    "num": "List Number",
+    "num2": "List Number 2",
+    "bullet": "List Bullet",
+}
+_STYLE_TAG_RE = re.compile(r"^\{([a-z0-9]+)\} ")
+BODY_STYLES = {"normal", "num", "num2", "bullet"}
+
+# Headings a section_insert adds, each paired with a clause from the pool.
+SECTION_HEADINGS = (
+    "Anti-Bribery",
+    "Force Majeure",
+    "Notices",
+    "Waiver",
+    "Severance",
+    "Counterparts",
+    "Third Party Rights",
+    "Non-Solicitation",
+    "Business Continuity",
+    "Dispute Resolution",
+    "Costs",
+    "Audit",
+)
+
+
+def split_style(block: str) -> tuple[str, str]:
+    """``("h1", "Confidentiality")`` from ``"{h1} Confidentiality"``."""
+    m = _STYLE_TAG_RE.match(block)
+    if not m:
+        return "normal", block
+    tag = m.group(1)
+    if tag not in STYLES:
+        raise ValueError(f"unknown style tag {{{tag}}} in {block[:60]!r}")
+    return tag, block[m.end() :]
+
+
 @dataclass
 class Paragraph:
     """One block of the document being edited.
 
     ``old`` is the original text, or None for a paragraph an edit inserted.
     ``edits`` holds the (deleted, inserted) pairs of in-paragraph edits.
+    ``style`` is the paragraph's role (a key of STYLES); edits never change it.
     """
 
     old: str | None
     words: list[str]
+    style: str = "normal"
     edits: list[tuple[str, str]] = field(default_factory=list)
     protected: set[int] = field(default_factory=set)
     locked: bool = False
@@ -174,8 +227,12 @@ class EditFailed(Exception):
 
 class Editor:
     def __init__(self, blocks: list[str], extra: list[str], rng: random.Random) -> None:
-        self.paras = [Paragraph(old=b, words=b.split(" ")) for b in blocks]
-        self.extra = [c for c in extra if c not in blocks]
+        self.paras = []
+        for block in blocks:
+            style, text = split_style(block)
+            self.paras.append(Paragraph(old=text, words=text.split(" "), style=style))
+        texts = {p.old for p in self.paras}
+        self.extra = [c for c in extra if c not in texts]
         self.rng = rng
         self.log: list[dict[str, object]] = []
 
@@ -253,7 +310,9 @@ class Editor:
         self._record("punctuation_change", i, ",", new)
 
     def phrase_insert(self) -> None:
-        i = self._pick_paragraph(self._editable_body())
+        i = self._pick_paragraph(
+            [j for j in self._editable_body() if self.paras[j].style in BODY_STYLES and len(self.paras[j].words) >= 4]
+        )
         p = self.paras[i]
         # After word k, never after the last word (that would follow the full
         # stop) and never after a word ending a sentence.
@@ -339,10 +398,37 @@ class Editor:
                 self._record("dense_paragraph", i, deleted, "")
         p.locked = True
 
+    def _body_style_at(self, at: int) -> str:
+        """The style a new clause at position ``at`` takes: that of the body
+        paragraph before it, so a clause added inside a numbered list is
+        numbered too."""
+        for k in range(at - 1, -1, -1):
+            if self.paras[k].style in BODY_STYLES:
+                return self.paras[k].style
+            if self.paras[k].style in ("h1", "h2"):
+                break
+        return "normal"
+
+    def section_insert(self) -> None:
+        """A new heading and a clause under it, inserted just before an
+        existing heading of the same level (so it is a section of its own),
+        or at the end when the document has no headings."""
+        headings = [i for i, p in enumerate(self.paras) if i > 0 and p.style in ("h1", "h2") and not p.deleted]
+        level = self.paras[headings[0]].style if headings else "h1"
+        candidates = [i for i in headings if self.paras[i].style == level] or [len(self.paras)]
+        at = self.rng.choice(candidates)
+        clause = self._pop_extra()
+        heading = self.rng.choice(SECTION_HEADINGS)
+        body = self._body_style_at(at) if at < len(self.paras) else "normal"
+        self.paras.insert(at, Paragraph(old=None, words=clause.split(" "), locked=True, style=body))
+        self.paras.insert(at, Paragraph(old=None, words=heading.split(" "), locked=True, style=level))
+        self._record("section_insert", at, "", heading)
+        self._record("section_insert", at + 1, "", clause)
+
     def paragraph_insert(self) -> None:
         text = self._pop_extra()
         at = self.rng.randint(1, len(self.paras))
-        self.paras.insert(at, Paragraph(old=None, words=text.split(" "), locked=True))
+        self.paras.insert(at, Paragraph(old=None, words=text.split(" "), locked=True, style=self._body_style_at(at)))
         self._record("paragraph_insert", at, "", text)
 
     def paragraph_delete(self) -> None:
@@ -358,7 +444,7 @@ class Editor:
         p = self.paras[i]
         assert p.old is not None
         p.deleted = True
-        self.paras.insert(i + 1, Paragraph(old=None, words=text.split(" "), locked=True))
+        self.paras.insert(i + 1, Paragraph(old=None, words=text.split(" "), locked=True, style=p.style))
         self._record("paragraph_replace", i, p.old, text)
 
     def term_rename(self) -> None:
@@ -385,6 +471,13 @@ class Editor:
             raise EditFailed
 
     # Output --------------------------------------------------------------
+
+    def styles(self) -> tuple[list[str], list[str]]:
+        """The style of each old block and each new block, parallel to result()."""
+        return (
+            [p.style for p in self.paras if p.old is not None],
+            [p.style for p in self.paras if not p.deleted],
+        )
 
     def result(self) -> tuple[list[str], list[str], list[str], list[str]]:
         """(old blocks, new blocks, expected deleted, expected inserted)."""
@@ -438,6 +531,8 @@ def make_pair(
         "edit_types": sorted(set(applied)),
         "edits": editor.log,
         "old": old,
+        "old_styles": editor.styles()[0],
+        "new_styles": editor.styles()[1],
         "new": new,
         "expected_deleted": deleted,
         "expected_inserted": inserted,

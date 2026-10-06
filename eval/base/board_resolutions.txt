@@ -1,0 +1,45 @@
+{title} Written Resolutions of the Board
+
+{subtitle} Tamsin Hollow Breweries Limited (company number 07654321)
+
+The following resolutions were passed as written resolutions of the directors of the Company on 17 April 2025 in accordance with the articles of association of the Company.
+
+{h1} Present and consenting
+
+{bullet} Edmund Rourke, chair
+
+{bullet} Hana Okafor, finance director
+
+{bullet} Lewis Penhaligon, non-executive director
+
+{h1} Background
+
+The directors noted that the Company proposes to acquire a new bottling line from Severn Process Equipment Ltd for a price of £640,000, to be financed in part by a term loan from Dunmore Bank plc.
+
+{h1} Resolutions
+
+{h2} Approval of the acquisition
+
+{num} It was resolved that the acquisition of the bottling line on the terms of the draft purchase agreement presented to the directors be approved.
+
+{num} It was resolved that any one director be authorised to sign the purchase agreement on behalf of the Company, with such amendments as that director considers appropriate.
+
+{h2} Approval of the facility
+
+{num} It was resolved that the Company enter into a term loan facility of up to £400,000 with Dunmore Bank plc, repayable over 5 years.
+
+{num} It was resolved that the Company grant a debenture in favour of Dunmore Bank plc as security for the facility.
+
+{num} It was resolved that the finance director be authorised to deliver any utilisation request under the facility.
+
+{h2} Declarations of interest
+
+{num} Lewis Penhaligon declared that he is a shareholder in Severn Process Equipment Ltd, and the other directors resolved that he may nevertheless count in the quorum and vote on these resolutions.
+
+{h2} Filings
+
+{num} It was resolved that the company secretary be instructed to register the debenture at Companies House within 21 days of its creation.
+
+{h1} Signatures
+
+Signed by each director to signify agreement to the resolutions above.
