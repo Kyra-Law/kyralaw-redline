@@ -289,3 +289,79 @@ def test_random_edits_always_accept_and_reject_to_both_versions() -> None:
             elif op == "br" and new:
                 new[i] = new[i] + "\n" + para(rng)
         assert _both_views(old, new) == (new, old), f"seed {seed}"
+
+
+def test_deleting_or_inserting_the_last_or_first_paragraph_leaves_no_empty_one() -> None:
+    """Segment lists where the separator sits outside the changed paragraph,
+    so one view ends (or starts) with newlines. Those are not a break."""
+    cases = [
+        (
+            [DiffSegment("equal", "Keep."), DiffSegment("equal", "\n\n"), DiffSegment("delete", "Gone.")],
+            ["Keep."],
+            ["Keep.", "Gone."],
+        ),
+        (
+            [DiffSegment("equal", "Keep."), DiffSegment("equal", "\n\n"), DiffSegment("insert", "New.")],
+            ["Keep.", "New."],
+            ["Keep."],
+        ),
+        (
+            [DiffSegment("delete", "Gone."), DiffSegment("equal", "\n\n"), DiffSegment("equal", "Keep.")],
+            ["Keep."],
+            ["Gone.", "Keep."],
+        ),
+        (
+            [DiffSegment("insert", "New."), DiffSegment("equal", "\n\n"), DiffSegment("equal", "Keep.")],
+            ["New.", "Keep."],
+            ["Keep."],
+        ),
+    ]
+    for segs, accepted, original in cases:
+        out = render_segments_docx(segs)
+        assert extract_paragraphs(out) == accepted, segs
+        assert extract_paragraphs(out, view="original") == original, segs
+
+
+def test_any_valid_segment_list_renders_to_both_versions() -> None:
+    """render_segments_docx is public, so it must handle segment lists that
+    compute_redline_segments would never produce: separators as their own
+    equal, deleted or inserted segment, or split across two segments."""
+    import random
+
+    for seed in range(600):
+        rng = random.Random(seed)
+        segs: list[DiffSegment] = []
+        old: list[str] = []
+        new: list[str] = []
+        had_old = had_new = False
+        for k in range(rng.randint(1, 6)):
+            op = rng.choice(["keep", "del", "ins", "edit"])
+            text = f"P{k} " + " ".join(rng.choice(["alpha", "beta", "gamma"]) for _ in range(rng.randint(1, 4)))
+            in_old, in_new = op != "ins", op != "del"
+            if (had_old and in_old) or (had_new and in_new):
+                both = had_old and in_old and had_new and in_new
+                kind = "equal" if both else ("delete" if had_old and in_old else "insert")
+                if kind == "equal" and rng.random() < 0.3:
+                    segs += [DiffSegment("equal", "\n"), DiffSegment("equal", "\n")]
+                else:
+                    segs.append(DiffSegment(kind, "\n\n"))  # type: ignore[arg-type]
+            if op == "keep":
+                segs.append(DiffSegment("equal", text))
+                old.append(text)
+                new.append(text)
+            elif op == "del":
+                segs.append(DiffSegment("delete", text))
+                old.append(text)
+            elif op == "ins":
+                segs.append(DiffSegment("insert", text))
+                new.append(text)
+            else:
+                segs += [DiffSegment("equal", text + " "), DiffSegment("delete", "old"), DiffSegment("insert", "new")]
+                old.append(text + " old")
+                new.append(text + " new")
+            had_old, had_new = had_old or in_old, had_new or in_new
+        out = render_segments_docx(segs)
+        accepted, original = extract_paragraphs(out), extract_paragraphs(out, view="original")
+        # A Word document always has one paragraph, so an empty version is [""].
+        assert (accepted if accepted != [""] else []) == new, f"seed {seed}"
+        assert (original if original != [""] else []) == old, f"seed {seed}"

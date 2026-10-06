@@ -173,7 +173,10 @@ def _break_ends(chars: list[tuple[SegmentKind, str]], visible: set[str]) -> tupl
         if i >= 0 and chars[i][1] == "\n":
             run.append(i)
             continue
-        if len(run) >= 2:
+        # Newlines at the very start or end of the text separate nothing
+        # from nothing: they are not a break (edge_newlines drops them).
+        at_edge = bool(run) and (run[0] == view[0] or run[-1] == view[-1])
+        if len(run) >= 2 and not at_edge:
             sep.update(run)
             ends.add(run[-1])
         run = []
