@@ -10,6 +10,7 @@ from pathlib import Path
 from docx import Document
 
 from kyralaw_redline import (
+    DiffSegment,
     added_text,
     build_redline_docx,
     compute_redline_segments,
@@ -18,6 +19,7 @@ from kyralaw_redline import (
     read_tracked_changes,
     redline_docx,
     removed_text,
+    render_segments_docx,
 )
 from kyralaw_redline.cli import main as cli_main
 
@@ -195,3 +197,95 @@ def test_replaced_paragraph_does_not_gain_a_line_break() -> None:
     out = build_redline_docx(old, new)
     assert extract_paragraphs(out) == new.split("\n\n")
     assert extract_paragraphs(out, view="original") == old.split("\n\n")
+
+
+def _both_views(old: list[str], new: list[str]) -> tuple[list[str], list[str]]:
+    out = build_redline_docx("\n\n".join(old), "\n\n".join(new))
+    return extract_paragraphs(out), extract_paragraphs(out, view="original")
+
+
+def test_a_lone_space_between_two_changes_does_not_split_the_paragraph() -> None:
+    segs = [
+        DiffSegment("equal", "Alpha."),
+        DiffSegment("equal", "\n\n"),
+        DiffSegment("insert", "Brand new clause."),
+        DiffSegment("equal", "\n\n"),
+        DiffSegment("equal", "The investors agree that the "),
+        DiffSegment("delete", "Founder"),
+        DiffSegment("insert", "Executive"),
+        DiffSegment("equal", " "),
+        DiffSegment("delete", "may"),
+        DiffSegment("insert", "can"),
+        DiffSegment("equal", " transfer."),
+    ]
+    out = render_segments_docx(segs)
+    assert extract_paragraphs(out) == [
+        "Alpha.",
+        "Brand new clause.",
+        "The investors agree that the Executive can transfer.",
+    ]
+    assert extract_paragraphs(out, view="original") == ["Alpha.", "The investors agree that the Founder may transfer."]
+
+
+def test_a_break_removed_on_one_side_becomes_a_tracked_paragraph_mark() -> None:
+    # One paragraph in the old text, split by a line break in the new one: the
+    # old side's paragraph break and the new side's line break share a newline.
+    old, new = ["First part.", "Second part."], ["First part.\nSecond part."]
+    assert _both_views(old, new) == (new, old)
+    assert _both_views(new, old) == (old, new)
+
+
+def test_paragraph_split_and_join_round_trip() -> None:
+    old = ["Clause one keeps going and then", "continues in a second paragraph.", "Clause two."]
+    new = ["Clause one keeps going and then continues in a second paragraph.", "Clause two.", "Clause three."]
+    assert _both_views(old, new) == (new, old)
+    assert _both_views(new, old) == (old, new)
+
+
+def test_random_edits_always_accept_and_reject_to_both_versions() -> None:
+    """Accepting every change must give the new paragraphs and rejecting every
+    change the old ones, for any edit. The earlier line-based grouping failed
+    this for roughly a quarter of these pairs."""
+    import random
+
+    words = [
+        "the",
+        "Supplier",
+        "shall",
+        "pay",
+        "Customer",
+        "fee",
+        "within",
+        "thirty",
+        "days",
+        "of",
+        "invoice",
+        "and",
+        "may",
+        "terminate",
+        "notice",
+    ]
+
+    def para(rng: random.Random) -> str:
+        return " ".join(rng.choice(words) for _ in range(rng.randint(1, 8))) + rng.choice([".", "", ","])
+
+    for seed in range(400):
+        rng = random.Random(seed)
+        old = [para(rng) for _ in range(rng.randint(1, 6))]
+        new = list(old)
+        for _ in range(rng.randint(1, 4)):
+            op = rng.choice(["ins", "del", "rep", "edit", "br"])
+            i = rng.randrange(len(new) + (op == "ins"))
+            if op == "ins":
+                new.insert(i, para(rng))
+            elif op == "del" and len(new) > 1:
+                del new[i]
+            elif op == "rep" and new:
+                new[i] = para(rng)
+            elif op == "edit" and new:
+                w = new[i].split(" ")
+                w[rng.randrange(len(w))] = rng.choice(words)
+                new[i] = " ".join(w)
+            elif op == "br" and new:
+                new[i] = new[i] + "\n" + para(rng)
+        assert _both_views(old, new) == (new, old), f"seed {seed}"

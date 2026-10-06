@@ -52,6 +52,7 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
 from docx import Document
 
@@ -165,6 +166,15 @@ def _docx(blocks: list[str]) -> bytes:
     return buf.getvalue()
 
 
+def _paragraphs(docx: bytes, view: Literal["accepted", "original"]) -> list[str]:
+    """A view's paragraphs, empty ones included. The one exception: a Word
+    document always holds at least one paragraph, so a view with no text at
+    all (every paragraph inserted, or every one deleted) reads as one empty
+    paragraph, which stands for an empty document rather than a defect."""
+    paras = extract_paragraphs(docx, view=view)
+    return [] if paras == [""] else paras
+
+
 def score_pair(pair: dict[str, object], algorithm: Algorithm, save_to: Path | None) -> PairResult:
     old = pair["old"]
     new = pair["new"]
@@ -183,9 +193,9 @@ def score_pair(pair: dict[str, object], algorithm: Algorithm, save_to: Path | No
     errors = []
     # Paragraph by paragraph, empty ones included: a deleted paragraph that
     # leaves an empty one behind when accepted is a defect, not a match.
-    if extract_paragraphs(out) != new:
+    if _paragraphs(out, "accepted") != new:
         errors.append("accepting all changes does not give the new text")
-    if extract_paragraphs(out, view="original") != old:
+    if _paragraphs(out, "original") != old:
         errors.append("rejecting all changes does not give the old text")
 
     if save_to is not None:

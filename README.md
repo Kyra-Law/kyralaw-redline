@@ -104,7 +104,7 @@ document paragraph for paragraph, and rejecting every change the old one.
 | Algorithm | Score | Insert F1 | Delete F1 | Integrity failures |
 | --- | ---: | ---: | ---: | ---: |
 | kyralaw-redline | 98.00 | 0.979 | 0.981 | 0/139 |
-| `difflib-words`: token-level difflib, no alignment or heuristics | 85.75 | 0.819 | 0.896 | 43/139 |
+| `difflib-words`: token-level difflib, no alignment or heuristics | 85.75 | 0.819 | 0.896 | 0/139 |
 | `paragraph-baseline`: a line diff | 34.48 | 0.336 | 0.354 | 0/139 |
 
 The single-edit families are close to solved. The `dense` family (89.49) is where the remaining

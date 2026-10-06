@@ -34,7 +34,7 @@ from docx.oxml.ns import qn
 from docx.oxml.xmlchemy import BaseOxmlElement
 from docx.text.paragraph import Paragraph
 
-from kyralaw_redline.diff import DiffSegment, compute_redline_segments
+from kyralaw_redline.diff import DiffSegment, SegmentKind, compute_redline_segments
 
 DEFAULT_AUTHOR = "kyralaw-redline"
 
@@ -154,50 +154,97 @@ def extract_text(docx_bytes: bytes, *, view: View = "accepted") -> str:
     return "\n\n".join(t.strip("\n") for t in extract_paragraphs(docx_bytes, view=view) if t.strip())
 
 
-def _segments_to_paragraphs(segments: list[DiffSegment]) -> list[list[DiffSegment]]:
-    """Regroup a flat, line-level segment list into one list per paragraph.
+Mark = Literal["equal", "delete", "insert"]
 
-    :func:`compute_redline_segments` works line by line, so neither boundary
-    lines up with a segment: one segment can span several paragraphs, and one
-    paragraph can be assembled from several segments of different kinds. The
-    paragraph breaks are the blank lines between blocks; they are structure
-    rather than content, so they end a paragraph and are never rendered,
-    whatever kind of segment they arrived in.
 
-    Line endings inside a paragraph are kept (rendered as ``w:br``); the
-    paragraph's own final line ending is dropped, on the old and new side
-    independently.
+def _break_ends(chars: list[tuple[SegmentKind, str]], visible: set[str]) -> tuple[set[int], set[int]]:
+    """For one view, the stream positions of its paragraph-separator characters
+    and of the last character of each separator.
+
+    A separator is a run of two or more newlines in that view's text, which is
+    how blocks are joined (see :func:`extract_text`). A single newline is a
+    line break inside a paragraph, so it is content.
     """
-    paragraphs: list[list[DiffSegment]] = []
-    current: list[DiffSegment] = []
+    view = [i for i, (kind, _) in enumerate(chars) if kind in visible]
+    sep: set[int] = set()
+    ends: set[int] = set()
+    run: list[int] = []
+    for i in [*view, -1]:
+        if i >= 0 and chars[i][1] == "\n":
+            run.append(i)
+            continue
+        if len(run) >= 2:
+            sep.update(run)
+            ends.add(run[-1])
+        run = []
+    return sep, ends
 
-    def flush() -> None:
-        while current and not current[-1].text.strip():
-            current.pop()
-        if not current:
-            return
-        # The paragraph's final line ending is structure, on each side
-        # separately: a replaced paragraph arrives as delete "old\n" then
-        # insert "new\n", and stripping only the last segment would leave the
-        # deletion ending in a line break that the original never had.
-        for side in (("equal", "delete"), ("equal", "insert")):
-            for k in range(len(current) - 1, -1, -1):
-                if current[k].kind in side:
-                    if current[k].text.endswith("\n"):
-                        current[k] = DiffSegment(current[k].kind, current[k].text[:-1])
+
+def _segments_to_paragraphs(segments: list[DiffSegment]) -> list[tuple[list[DiffSegment], Mark]]:
+    """Regroup a flat segment list into Word paragraphs, each with the kind of
+    its paragraph mark.
+
+    The segments describe two texts at once: the old one (equal + delete) and
+    the new one (equal + insert). Each has its own paragraph breaks, and they
+    need not coincide: deleting a paragraph removes a break from the old text
+    only, splitting one adds a break to the new text only. So the breaks are
+    found in each view separately, and a Word paragraph ends wherever either
+    view's break ends. Its mark is untracked when both views break there,
+    deleted when only the old one does, inserted when only the new one does;
+    :func:`extract_paragraphs` (and Word) then join a paragraph whose mark is
+    absent from a view onto the next, which gives back each view exactly.
+
+    Each character is rendered in the views where it is content: plain where it
+    is content in both, as a deletion or insertion where it is content in one
+    only. Separator characters are never rendered; a newline that separates
+    paragraphs in one view but is an in-paragraph line break in the other is
+    rendered, as a line break, in the other view only.
+
+    Correct by construction for any segment list, rather than by rules about
+    which lines look blank. Two such rules failed: treating every
+    whitespace-only line as a break split a paragraph at a lone space between
+    two changes, and treating a blank line as a break in both views whatever
+    segment it arrived in split or merged paragraphs whenever a break existed on
+    one side only.
+    """
+    chars = [(seg.kind, ch) for seg in segments for ch in seg.text]
+    old_sep, old_ends = _break_ends(chars, {"equal", "delete"})
+    new_sep, new_ends = _break_ends(chars, {"equal", "insert"})
+
+    # Newlines at the very start or end of either text are not content.
+    def edge_newlines(visible: set[str]) -> set[int]:
+        view = [i for i, (kind, _) in enumerate(chars) if kind in visible]
+        out: set[int] = set()
+        for seq in (view, list(reversed(view))):
+            for i in seq:
+                if chars[i][1] != "\n":
                     break
-        paragraphs.append([seg for seg in current if seg.text])
-        current.clear()
+                out.add(i)
+        return out
 
-    for segment in segments:
-        for line in segment.text.splitlines(keepends=True):
-            if not line.strip():
-                flush()
-            elif current and current[-1].kind == segment.kind:
-                current[-1] = DiffSegment(segment.kind, current[-1].text + line)
+    old_sep |= edge_newlines({"equal", "delete"})
+    new_sep |= edge_newlines({"equal", "insert"})
+    last = len(chars) - 1
+
+    paragraphs: list[tuple[list[DiffSegment], Mark]] = []
+    current: list[DiffSegment] = []
+    for i, (kind, ch) in enumerate(chars):
+        in_old = kind in ("equal", "delete") and i not in old_sep
+        in_new = kind in ("equal", "insert") and i not in new_sep
+        if in_old or in_new:
+            out_kind: SegmentKind = "equal" if in_old and in_new else ("delete" if in_old else "insert")
+            if current and current[-1].kind == out_kind:
+                current[-1] = DiffSegment(out_kind, current[-1].text + ch)
             else:
-                current.append(DiffSegment(segment.kind, line))
-    flush()
+                current.append(DiffSegment(out_kind, ch))
+        ends_old = i in old_ends and i != last
+        ends_new = i in new_ends and i != last
+        if ends_old or ends_new:
+            mark: Mark = "equal" if ends_old and ends_new else ("delete" if ends_old else "insert")
+            paragraphs.append((current, mark))
+            current = []
+    if current or not paragraphs:
+        paragraphs.append((current, "equal"))
     return paragraphs
 
 
@@ -230,17 +277,20 @@ def _tracked(tag: str, text: str, author: str, date: str, rev_id: int) -> BaseOx
 
 
 def _fill_paragraph(
-    paragraph: Paragraph, segments: list[DiffSegment], author: str, date: str, ids: itertools.count[int]
+    paragraph: Paragraph,
+    segments: list[DiffSegment],
+    mark: Mark,
+    author: str,
+    date: str,
+    ids: itertools.count[int],
 ) -> None:
     p = paragraph._p
-    # A paragraph that is wholly deleted or wholly inserted has its paragraph
-    # mark tracked too. Without that, accepting a deleted paragraph in Word
-    # leaves an empty paragraph where it was, and rejecting an inserted one
-    # does the same.
-    kinds = {seg.kind for seg in segments if seg.text}
-    if kinds in ({"delete"}, {"insert"}):
+    # A paragraph break that exists in one version only is a tracked paragraph
+    # mark. A wholly deleted paragraph gets one too, which is what stops
+    # accepting it in Word from leaving an empty paragraph behind.
+    if mark != "equal":
         rpr = OxmlElement("w:rPr")
-        rpr.append(_revision("del" if kinds == {"delete"} else "ins", author, date, next(ids)))
+        rpr.append(_revision("del" if mark == "delete" else "ins", author, date, next(ids)))
         p.get_or_add_pPr().append(rpr)
     for seg in segments:
         if not seg.text:
@@ -267,8 +317,8 @@ def render_segments_docx(
     doc = _new_document()
     ids = itertools.count(1)
     stamp = (date or datetime.now(timezone.utc)).strftime("%Y-%m-%dT%H:%M:%SZ")
-    for paragraph_segments in _segments_to_paragraphs(segments):
-        _fill_paragraph(doc.add_paragraph(), paragraph_segments, author, stamp, ids)
+    for paragraph_segments, mark in _segments_to_paragraphs(segments):
+        _fill_paragraph(doc.add_paragraph(), paragraph_segments, mark, author, stamp, ids)
     buf = io.BytesIO()
     doc.save(buf)
     return buf.getvalue()
