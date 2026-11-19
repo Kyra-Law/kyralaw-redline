@@ -238,3 +238,53 @@ def test_whitespace_tokens_do_not_spuriously_match_across_unrelated_text() -> No
     segments = diff_paragraph(old_text, new_text)
     assert removed_text(segments) == old_text
     assert added_text(segments) == new_text
+
+
+# A short line that recurs, such as a signature label, must never anchor the
+# line-level pass across the document. Shape of the agreement that exposed it
+# (2026-11-19): the recurring line sits early in the old version and late in
+# both, and every other matching line is unique and on its own, so the longest
+# matches are all single lines and SequenceMatcher picks the earliest, the
+# recurring one, pairing it with the late copy. Everything between then came
+# out as a wholesale deletion plus a wholesale insertion (about 480 words each
+# way here, against a true change of 20 words). Fails without _line_opcodes'
+# unique-line anchoring.
+_RECURRING = "Signed by:"
+
+
+def _recurring_line_doc(edited: bool) -> str:
+    paras = ["SUPPLY AGREEMENT"]
+    if not edited:
+        paras.append(_RECURRING)
+    for k in range(1, 21):
+        paras.append(f"{k}.1 The Supplier keeps the register for lot {k} at its principal office.")
+        verb = "must" if edited else "shall"
+        paras.append(f"{k}.2 The Buyer {verb} inspect lot {k} within the inspection window.")
+        if not edited and k == 10:
+            paras.append(_RECURRING)
+    paras += [_RECURRING, "Execution page"]
+    return "\n\n".join(paras) + "\n"
+
+
+def test_a_recurring_line_does_not_anchor_across_the_document() -> None:
+    old_text, new_text = _recurring_line_doc(False), _recurring_line_doc(True)
+    segments = compute_redline_segments(old_text, new_text)
+    assert "".join(s.text for s in segments if s.kind != "insert") == old_text
+    assert "".join(s.text for s in segments if s.kind != "delete") == new_text
+    assert added_text(segments).split() == ["must"] * 20
+    assert removed_text(segments).split().count("shall") == 20
+    assert len(removed_text(segments).split()) == 24  # the 20 verbs and the two dropped labels
+    # Every unchanged clause stays unchanged.
+    for k in range(1, 21):
+        assert f"{k}.1 The Supplier keeps the register for lot {k} at its principal office." in _equal_text(segments)
+
+
+def test_a_recurring_line_still_matches_within_its_own_region() -> None:
+    # The same label recurring in both versions, with a one-word edit beside
+    # each copy: no copy is unique, so none anchors, and each must still match
+    # its own counterpart inside the gap it sits in.
+    old_text = "Part A\n\nSigned by:\n\nThe Buyer shall pay.\n\nPart B\n\nSigned by:\n\nThe Seller shall deliver.\n"
+    new_text = "Part A\n\nSigned by:\n\nThe Buyer must pay.\n\nPart B\n\nSigned by:\n\nThe Seller must deliver.\n"
+    segments = compute_redline_segments(old_text, new_text)
+    assert added_text(segments).split() == ["must", "must"]
+    assert removed_text(segments).split() == ["shall", "shall"]

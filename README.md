@@ -142,18 +142,17 @@ over pairs. Two further checks are reported beside it:
 
 | Algorithm | Score | Insert F1 | Delete F1 | Integrity failures | Styles kept |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| kyralaw-redline | 97.45 | 0.965 | 0.984 | 0/265 | 8.9% |
+| kyralaw-redline | 98.88 | 0.988 | 0.990 | 0/265 | 8.9% |
 | `difflib-words`: token-level difflib, no alignment or heuristics | 91.45 | 0.894 | 0.935 | 0/265 | 8.9% |
 | `paragraph-baseline`: a line diff | 52.68 | 0.530 | 0.523 | 0/265 | 8.9% |
 
-There are two weak spots:
+The weak spot is **dense edits (92.50)**: adjacent edits in one paragraph still sometimes make the
+merge heuristics replace a whole span instead of making the small edits within it.
 
-- **Tables (`row_delete`, 79.78).** In a table of short, similar rows ("Priority 1", "Priority 2"),
-  deleting one row makes the diff pair each remaining row with its neighbour. The redline reports
-  "1 -> 2" and so on instead of one deleted row. Word compares tables row by row; a text diff over
-  flattened cells does not.
-- **Dense edits (92.50).** Adjacent edits in one paragraph still sometimes make the merge
-  heuristics replace a whole span instead of making the small edits within it.
+Table row deletions (`row_delete`) used to be a second one, at 79.78: in a table of short, similar
+rows, deleting one row paired each remaining row with its neighbour. The cause was the same as a
+failure on a real negotiated agreement, a recurring line anchoring the line-level diff in the wrong
+place, and anchoring on lines unique to both versions fixed both (100.00 since).
 
 **Styles kept** is 8.9% for all three because none carries styles over: each writes its redline
 into a blank document, so only the plain paragraphs match, and tables come out as paragraphs. That

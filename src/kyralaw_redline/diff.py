@@ -6,9 +6,11 @@ That is unreadable for contracts, where most edits are a word or a phrase
 inside an otherwise unchanged clause. This module fixes the granularity with
 a two-pass, pure-Python diff (standard library only):
 
-1. A line-level ``difflib.SequenceMatcher`` first, so wholesale paragraph
-   insertions and deletions stay whole, which is how Word's own Compare
-   Documents reports them.
+1. A line-level pass first, so wholesale paragraph insertions and deletions
+   stay whole, which is how Word's own Compare Documents reports them. It
+   anchors on lines unique to both versions (the idea behind patience diff)
+   and uses ``difflib.SequenceMatcher`` only between those anchors, so a
+   recurring line cannot pair two distant places (see :func:`_line_opcodes`).
 2. Within each line-level "replace" block, paragraphs are aligned by
    similarity and each aligned pair gets a token-level ``SequenceMatcher``
    pass that finds the words that actually changed, leaving the surrounding
@@ -333,10 +335,9 @@ def compute_redline_segments(old_text: str, new_text: str) -> list[DiffSegment]:
     """
     old_lines = old_text.splitlines(keepends=True)
     new_lines = new_text.splitlines(keepends=True)
-    sm = difflib.SequenceMatcher(_is_junk_line, old_lines, new_lines, autojunk=False)
 
     segments: list[DiffSegment] = []
-    for tag, i1, i2, j1, j2 in sm.get_opcodes():
+    for tag, i1, i2, j1, j2 in _line_opcodes(old_lines, new_lines):
         if tag == "equal":
             segments.append(DiffSegment("equal", "".join(old_lines[i1:i2])))
         elif tag == "delete":
@@ -347,6 +348,122 @@ def compute_redline_segments(old_text: str, new_text: str) -> list[DiffSegment]:
             for block_segments in diff_blocks(old_lines[i1:i2], new_lines[j1:j2]):
                 segments.extend(block_segments)
     return segments
+
+
+def _line_opcodes(old_lines: list[str], new_lines: list[str]) -> list[_Opcode]:
+    """Line-level opcodes, anchored only on lines that occur once on each side.
+
+    ``SequenceMatcher`` finds the longest matching run first and recurses either
+    side of it, so a short line that recurs ("Signed by:", "Schedule", a
+    repeated defined-term heading) can become the anchor that splits a document
+    in the wrong place. Seen on a heavily negotiated agreement (2026-11-19):
+    two one-line matches between copies of a repeated line paired old line 76
+    with new line 344, so 300 lines of edited clauses came out as one
+    wholesale deletion followed by 300 lines of wholesale insertion, and the
+    word-level pass never saw a single pair to compare (score 0.23).
+
+    This is the anchoring idea of patience diff: take the lines that are
+    unique in both ``old_lines`` and ``new_lines``, keep the longest chain of
+    them that is in order on both sides, and treat those as fixed points. Each
+    gap between two fixed points is diffed the same way, recursively, and a
+    gap with no unique lines left falls back to ``SequenceMatcher``, now on a
+    small, bounded region. A recurring line can then only ever match within
+    the gap it sits in, never across the document.
+
+    Adjacent deletes and inserts are merged into one ``replace`` so the
+    paragraph alignment in :func:`diff_blocks` sees each edited region whole.
+    """
+    raw: list[_Opcode] = []
+    _patience(old_lines, new_lines, 0, len(old_lines), 0, len(new_lines), raw)
+    merged: list[tuple[bool, int, int, int, int]] = []  # (is_equal, i1, i2, j1, j2)
+    for tag, i1, i2, j1, j2 in raw:
+        if i1 == i2 and j1 == j2:
+            continue
+        equal = tag == "equal"
+        if merged and merged[-1][0] == equal:
+            _, a1, _, b1, _ = merged[-1]
+            merged[-1] = (equal, a1, i2, b1, j2)
+        else:
+            merged.append((equal, i1, i2, j1, j2))
+    out: list[_Opcode] = []
+    for equal, i1, i2, j1, j2 in merged:
+        if equal:
+            out.append(("equal", i1, i2, j1, j2))
+        elif i1 == i2:
+            out.append(("insert", i1, i2, j1, j2))
+        elif j1 == j2:
+            out.append(("delete", i1, i2, j1, j2))
+        else:
+            out.append(("replace", i1, i2, j1, j2))
+    return out
+
+
+def _patience(a: list[str], b: list[str], alo: int, ahi: int, blo: int, bhi: int, out: list[_Opcode]) -> None:
+    """Append opcodes for ``a[alo:ahi]`` against ``b[blo:bhi]`` to ``out`` (see :func:`_line_opcodes`)."""
+    # Common prefix and suffix are equal outright, whatever repeats inside them.
+    while alo < ahi and blo < bhi and a[alo] == b[blo]:
+        out.append(("equal", alo, alo + 1, blo, blo + 1))
+        alo, blo = alo + 1, blo + 1
+    tail: list[_Opcode] = []
+    while alo < ahi and blo < bhi and a[ahi - 1] == b[bhi - 1]:
+        tail.append(("equal", ahi - 1, ahi, bhi - 1, bhi))
+        ahi, bhi = ahi - 1, bhi - 1
+
+    anchors = _unique_anchors(a, b, alo, ahi, blo, bhi)
+    if not anchors:
+        sm = difflib.SequenceMatcher(_is_junk_line, a[alo:ahi], b[blo:bhi], autojunk=False)
+        out.extend((tag, alo + i1, alo + i2, blo + j1, blo + j2) for tag, i1, i2, j1, j2 in sm.get_opcodes())
+    else:
+        i, j = alo, blo
+        for ai, bj in anchors:
+            _patience(a, b, i, ai, j, bj, out)
+            out.append(("equal", ai, ai + 1, bj, bj + 1))
+            i, j = ai + 1, bj + 1
+        _patience(a, b, i, ahi, j, bhi, out)
+    out.extend(reversed(tail))
+
+
+def _unique_anchors(a: list[str], b: list[str], alo: int, ahi: int, blo: int, bhi: int) -> list[tuple[int, int]]:
+    """Lines occurring exactly once in each range, longest chain in order on both sides."""
+    count_a: dict[str, int] = {}
+    for line in a[alo:ahi]:
+        count_a[line] = count_a.get(line, 0) + 1
+    count_b: dict[str, int] = {}
+    where_b: dict[str, int] = {}
+    for k in range(blo, bhi):
+        count_b[b[k]] = count_b.get(b[k], 0) + 1
+        where_b[b[k]] = k
+    pairs = [
+        (k, where_b[a[k]])
+        for k in range(alo, ahi)
+        if not _is_junk_line(a[k]) and count_a[a[k]] == 1 and count_b.get(a[k]) == 1
+    ]
+    if len(pairs) < 2:
+        return pairs
+    # Longest increasing subsequence of the new-side positions (patience sorting).
+    tails: list[int] = []  # index into pairs of the smallest tail for each length
+    back: list[int] = [-1] * len(pairs)
+    for idx, (_, bj) in enumerate(pairs):
+        lo, hi = 0, len(tails)
+        while lo < hi:
+            mid = (lo + hi) // 2
+            if pairs[tails[mid]][1] < bj:
+                lo = mid + 1
+            else:
+                hi = mid
+        if lo > 0:
+            back[idx] = tails[lo - 1]
+        if lo == len(tails):
+            tails.append(idx)
+        else:
+            tails[lo] = idx
+    chain: list[tuple[int, int]] = []
+    k = tails[-1]
+    while k != -1:
+        chain.append(pairs[k])
+        k = back[k]
+    chain.reverse()
+    return chain
 
 
 # Below this similarity two blocks are different content, not an edited version
