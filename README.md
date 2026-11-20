@@ -168,6 +168,43 @@ mid 90s.
 To add an algorithm, add a function `(old_docx: bytes, new_docx: bytes) -> bytes` to `ALGORITHMS` in
 [`eval/run_eval.py`](eval/run_eval.py).
 
+## The Word benchmark: kyralaw-redline-bench
+
+The evaluation above uses documents generated here. [`eval/bench.py`](eval/bench.py) scores
+redlines on documents Word itself compared: **kyralaw-redline-bench**, 733 pairs of synthetic
+contracts and other legal documents derived from [Harvey LAB](https://github.com/harveyai/harvey-labs),
+each with Microsoft Word's own Compare Documents of the two versions as the reference. 48 pairs are
+a `dev` split for tuning; scores are reported on the other 685, `test`. The dataset is MIT licensed
+and published separately; its card explains how it was made and what was left out.
+
+```bash
+uv run python eval/bench.py path/to/kyralaw-redline-bench                      # built-in algorithms, test
+uv run python eval/bench.py path/to/kyralaw-redline-bench --split dev
+uv run python eval/bench.py path/to/kyralaw-redline-bench --redlines mine=out/  # your redlines: out/<id>.docx
+```
+
+It scores the same way as `run_eval.py`, with three differences that real Word documents need.
+Moved text counts as deleted where it was and inserted where it went, for Word's reference and the
+candidate alike. A paragraph whose mark was inserted or deleted runs on into the next, as in Word.
+And the score includes **fidelity**, whether the redline is still a usable Word document: no markup
+printed as text, tables and paragraph styles as in Word's reference, and the header and footer text
+kept. Score = 100 x the mean of insert F1, delete F1 and fidelity.
+
+**Results** (test, 685 pairs, one Apple silicon Mac):
+
+| Algorithm | Score | Text F1 | Fidelity | Integrity failures | Median time |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Word's reference scored as a candidate (a check on the scorer) | 100.00 | 100.00 | 1.000 | 0 | |
+| [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0 | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
+| Kyra Law's platform redline (not open source) | 93.94 | 91.31 | 0.992 | 3 | 116 ms |
+| kyralaw-redline | 78.72 | 92.39 | 0.514 | 0 | 384 ms |
+| `difflib-words` | 62.60 | 68.02 | 0.518 | 0 | 1.57 s |
+| `paragraph-baseline` | 49.68 | 48.56 | 0.519 | 0 | 220 ms |
+
+kyralaw-redline marks the change best of all, and loses on fidelity because it writes into a blank
+document (see Limitations): tables, headers and footers do not survive. Writing into the original
+document's own XML is what closes that gap, as the two redlines that do it show.
+
 ## Development
 
 ```bash
