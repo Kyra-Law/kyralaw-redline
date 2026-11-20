@@ -179,4 +179,4 @@ uv run python eval/generate.py --check
 
 ## Licence
 
-Apache-2.0. See [LICENSE](LICENSE) and [NOTICE](NOTICE). Copyright 2026 Kyra Law Limited.
+MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Kyra Law Limited.
