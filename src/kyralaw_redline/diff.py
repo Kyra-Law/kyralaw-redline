@@ -584,6 +584,54 @@ def diff_blocks(old_blocks: list[str], new_blocks: list[str]) -> list[list[DiffS
     return result
 
 
+@dataclass(frozen=True)
+class ParagraphAlignment:
+    """One step of a paragraph-level alignment.
+
+    ``old_index`` and ``new_index`` point into the two paragraph lists; either is
+    ``None`` for a paragraph that exists on one side only. ``segments`` is the
+    word diff of a paired paragraph whose text changed, and ``None`` for an
+    unchanged pair or a one-sided paragraph.
+    """
+
+    old_index: int | None
+    new_index: int | None
+    segments: list[DiffSegment] | None
+
+
+def align_paragraphs(old_paragraphs: list[str], new_paragraphs: list[str]) -> list[ParagraphAlignment]:
+    """Align two documents paragraph by paragraph, with a word diff per edited pair.
+
+    The same passes as :func:`compute_redline_segments`, over paragraphs rather
+    than the lines of one string: :func:`_line_opcodes`, anchored on paragraphs
+    unique to both sides, then :func:`_align_blocks` to pair the paragraphs of
+    each replaced region by similarity, then :func:`diff_paragraph` within each
+    pair. It returns which paragraph is which instead of a flat stream, so the
+    in-place renderer (:mod:`kyralaw_redline.inplace`), which writes into the
+    documents themselves, can put each change in the paragraph it belongs to.
+    Sharing the passes, rather than a second alignment there, keeps the in-place
+    and rebuild renderers measuring the same diff.
+    """
+    steps: list[ParagraphAlignment] = []
+    for tag, i1, i2, j1, j2 in _line_opcodes(old_paragraphs, new_paragraphs):
+        if tag == "equal":
+            steps.extend(ParagraphAlignment(i1 + k, j1 + k, None) for k in range(i2 - i1))
+        elif tag == "delete":
+            steps.extend(ParagraphAlignment(i, None, None) for i in range(i1, i2))
+        elif tag == "insert":
+            steps.extend(ParagraphAlignment(None, j, None) for j in range(j1, j2))
+        else:
+            for i, j in _align_blocks(old_paragraphs[i1:i2], new_paragraphs[j1:j2]):
+                old_index = None if i is None else i1 + i
+                new_index = None if j is None else j1 + j
+                segments = None
+                if old_index is not None and new_index is not None:
+                    diff = diff_paragraph(old_paragraphs[old_index], new_paragraphs[new_index])
+                    segments = None if all(s.kind == "equal" for s in diff) else diff
+                steps.append(ParagraphAlignment(old_index, new_index, segments))
+    return steps
+
+
 def added_text(segments: list[DiffSegment]) -> str:
     """Inserted text across all segments, space-joined.
 
