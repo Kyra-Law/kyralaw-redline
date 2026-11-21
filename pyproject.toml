@@ -11,7 +11,10 @@ license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Kyra Law Limited" }]
 requires-python = ">=3.10"
-dependencies = ["python-docx>=1.1.0"]
+dependencies = [
+    "lxml>=5.0",
+    "python-docx>=1.1.0",
+]
 keywords = ["redline", "diff", "docx", "tracked changes", "legal", "compare"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -31,7 +34,13 @@ kyralaw-redline = "kyralaw_redline.cli:main"
 
 [dependency-groups]
 # The eval renders Word comments, which python-docx supports from 1.2.
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "python-docx>=1.2.0"]
+dev = [
+    "pytest>=8",
+    "ruff>=0.6",
+    "mypy>=1.11",
+    "python-docx>=1.2.0",
+    "lxml-stubs>=0.5.1",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kyralaw_redline"]

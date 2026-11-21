@@ -23,9 +23,10 @@ from __future__ import annotations
 
 import io
 import itertools
+import warnings
 import zipfile
 from datetime import datetime, timezone
-from typing import Literal
+from typing import Literal, cast
 from xml.etree import ElementTree
 
 from docx import Document as _new_document
@@ -253,7 +254,8 @@ def _segments_to_paragraphs(segments: list[DiffSegment]) -> list[tuple[list[Diff
 
 def _run(text: str, *, deleted: bool) -> BaseOxmlElement:
     """A ``w:r`` holding ``text``, with each newline rendered as ``w:br``."""
-    r = OxmlElement("w:r")
+    # python-docx types OxmlElement as a plain lxml element; it is a BaseOxmlElement.
+    r = cast(BaseOxmlElement, OxmlElement("w:r"))
     for k, piece in enumerate(text.split("\n")):
         if k:
             r.append(OxmlElement("w:br"))
@@ -266,7 +268,7 @@ def _run(text: str, *, deleted: bool) -> BaseOxmlElement:
 
 
 def _revision(tag: str, author: str, date: str, rev_id: int) -> BaseOxmlElement:
-    el = OxmlElement(f"w:{tag}")
+    el = cast(BaseOxmlElement, OxmlElement(f"w:{tag}"))
     el.set(qn("w:id"), str(rev_id))
     el.set(qn("w:author"), author)
     el.set(qn("w:date"), date)
@@ -339,15 +341,49 @@ def build_redline_docx(
     return render_segments_docx(compute_redline_segments(old_text, new_text), author=author, date=date)
 
 
+Mode = Literal["auto", "in-place", "rebuild"]
+
+
+class InPlaceFallbackWarning(UserWarning):
+    """``mode="auto"`` could not redline in place and rebuilt the document instead."""
+
+
 def redline_docx(
-    old_docx: bytes, new_docx: bytes, *, author: str = DEFAULT_AUTHOR, date: datetime | None = None
+    old_docx: bytes,
+    new_docx: bytes,
+    *,
+    author: str = DEFAULT_AUTHOR,
+    date: datetime | None = None,
+    mode: Mode = "auto",
 ) -> bytes:
     """Compare two .docx files and return a redline .docx with tracked changes.
 
-    Equivalent to ``build_redline_docx(extract_text(old), extract_text(new))``;
-    see both for what is and is not carried over.
+    ``mode`` picks the renderer; both render the same diff
+    (:func:`kyralaw_redline.diff.align_paragraphs` and its passes):
+
+    - ``"in-place"``: the tracked changes are written into ``new_docx``'s own XML,
+      so its styles, numbering, tables, headers, footers and comments survive
+      (:func:`kyralaw_redline.inplace.redline_in_place`). Raises
+      :class:`kyralaw_redline.inplace.InPlaceRedlineError` when it cannot produce
+      a redline that passes its own accept/reject read-back.
+    - ``"rebuild"``: a new, plain document built from the two texts,
+      ``build_redline_docx(extract_text(old), extract_text(new))``. Always
+      succeeds; formatting is not carried over.
+    - ``"auto"`` (the default): in-place, and rebuild when in-place cannot, with an
+      :class:`InPlaceFallbackWarning` saying why, so a fallback is never silent.
     """
-    return build_redline_docx(extract_text(old_docx), extract_text(new_docx), author=author, date=date)
+    if mode == "rebuild":
+        return build_redline_docx(extract_text(old_docx), extract_text(new_docx), author=author, date=date)
+    # Imported here: inplace imports this module for DEFAULT_AUTHOR.
+    from kyralaw_redline.inplace import InPlaceRedlineError, redline_in_place
+
+    try:
+        return redline_in_place(old_docx, new_docx, author=author, date=date)
+    except InPlaceRedlineError as exc:
+        if mode == "in-place":
+            raise
+        warnings.warn(f"redlining in place failed ({exc}); rebuilt the document instead", InPlaceFallbackWarning, 2)
+        return build_redline_docx(extract_text(old_docx), extract_text(new_docx), author=author, date=date)
 
 
 def read_tracked_changes(docx_bytes: bytes) -> tuple[list[str], list[str]]:
