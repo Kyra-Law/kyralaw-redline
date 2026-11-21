@@ -19,16 +19,30 @@ from kyralaw_redline.docx_io import (
     redline_docx,
     render_segments_docx,
 )
+from kyralaw_redline.engine import (
+    AutoEngine,
+    InPlaceEngine,
+    RebuildEngine,
+    RedlineEngine,
+    RedlineEngineError,
+    check_engine_name,
+)
 from kyralaw_redline.inplace import InPlaceRedlineError, redline_in_place
 
 __all__ = [
+    "AutoEngine",
     "DiffSegment",
+    "InPlaceEngine",
     "InPlaceFallbackWarning",
     "InPlaceRedlineError",
     "ParagraphAlignment",
+    "RebuildEngine",
+    "RedlineEngine",
+    "RedlineEngineError",
     "added_text",
     "align_paragraphs",
     "build_redline_docx",
+    "check_engine_name",
     "compute_redline_segments",
     "diff_blocks",
     "diff_paragraph",

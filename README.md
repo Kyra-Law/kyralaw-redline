@@ -62,6 +62,8 @@ regression test that fails when the heuristic is removed.
 | `redline_in_place(old_docx, new_docx, *, author, date, keep_pending)` | the in-place renderer itself; `keep_pending` keeps both documents' pending revisions for a revised document edited directly from the base |
 | `build_redline_docx(old, new, *, author, date)` | the rebuild renderer: diff two texts and render a new `.docx` with `w:ins` / `w:del` |
 | `align_paragraphs(old, new)` | the paragraph alignment both renderers use, with a word diff per edited pair |
+| `RedlineEngine` | the interface every algorithm implements: a `name` and `redline(old_docx, new_docx) -> bytes`; see below |
+| `InPlaceEngine`, `AutoEngine`, `RebuildEngine` | this library's three modes as engines |
 | `render_segments_docx(segments, *, author, date)` | render any segment list through the same writer |
 | `extract_text(docx, *, view)` | a `.docx`'s body text, pending changes accepted (`view="accepted"`) or rejected (`"original"`) |
 | `extract_paragraphs(docx, *, view)` | the same, one string per paragraph, empty ones included |
@@ -70,6 +72,26 @@ regression test that fails when the heuristic is removed.
 
 Segments are lossless: joining the `equal` and `delete` segments reproduces the old text exactly, and
 joining `equal` and `insert` reproduces the new text.
+
+## Redline engines
+
+Every algorithm, this library's and every one it is compared with, is a `RedlineEngine`: two
+`.docx` files in, one redline `.docx` out.
+
+```python
+from kyralaw_redline import RedlineEngine, AutoEngine
+
+redline = AutoEngine(author="Reviewer")(old_docx, new_docx)  # bytes, bytes -> bytes
+
+
+class MyEngine(RedlineEngine):
+    name = "my-engine"  # lowercase words joined by hyphens, checked when the class is defined
+
+    def redline(self, old_docx: bytes, new_docx: bytes) -> bytes: ...
+```
+
+Calling an engine checks that what came back is a `.docx`, so a broken engine fails loudly rather
+than being scored as an empty redline. The evaluations run engines and nothing else.
 
 ## Limitations
 
@@ -191,8 +213,8 @@ compare algorithms, not as the accuracy you will see on your own documents. On a
 32 real document pairs, scored against Word's Compare output, the same code scores in the low to
 mid 90s.
 
-To add an algorithm, add a function `(old_docx: bytes, new_docx: bytes) -> bytes` to `ALGORITHMS` in
-[`eval/run_eval.py`](eval/run_eval.py).
+To add an algorithm, subclass `RedlineEngine` (above) and add an instance to `ENGINES` in
+[`eval/run_eval.py`](eval/run_eval.py); `eval/bench.py` picks it up too.
 
 ## The Word benchmark: kyralaw-redline-bench
 
@@ -207,6 +229,7 @@ and published separately; its card explains how it was made and what was left ou
 uv run python eval/bench.py path/to/kyralaw-redline-bench                      # built-in algorithms, test
 uv run python eval/bench.py path/to/kyralaw-redline-bench --split dev
 uv run python eval/bench.py path/to/kyralaw-redline-bench --redlines mine=out/  # your redlines: out/<id>.docx
+uv run python eval/bench.py path/to/kyralaw-redline-bench -a word-compare       # check the scorer: 100.00
 ```
 
 It scores the same way as `run_eval.py`, with three differences that real Word documents need.

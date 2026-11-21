@@ -13,6 +13,7 @@ Usage::
     python eval/bench.py DATA --split dev              # the 48 pairs meant for tuning
     python eval/bench.py DATA -a kyralaw-redline       # one algorithm (repeatable)
     python eval/bench.py DATA -a python-redlines       # needs: pip install python-redlines
+    python eval/bench.py DATA -a word-compare          # Word's reference as a candidate: must give 100
     python eval/bench.py DATA --redlines mine=out/     # score your own: out/<pair id>.docx
     python eval/bench.py DATA --json results.json --save-redlines out/
 
@@ -53,6 +54,7 @@ from __future__ import annotations
 
 import argparse
 import collections
+import hashlib
 import importlib
 import io
 import json
@@ -61,7 +63,7 @@ import statistics
 import sys
 import time
 import zipfile
-from collections.abc import Callable, Iterator
+from collections.abc import Iterator
 from dataclasses import asdict, dataclass
 from functools import cache
 from pathlib import Path
@@ -73,7 +75,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from generate import SCORE_TOKEN_RE, score_tokens
 from run_eval import ALGORITHMS, prf
 
-Algorithm = Callable[[bytes, bytes], bytes]
+from kyralaw_redline.engine import RedlineEngine, check_engine_name
+
 View = Literal["accepted", "original"]
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -321,42 +324,98 @@ def score_redline(pair: str, redline: bytes, ref: Reference, seconds: float | No
     )
 
 
-# Algorithms ------------------------------------------------------------------
+# Engines ---------------------------------------------------------------------
+#
+# Every algorithm scored here is a RedlineEngine: two .docx files in, one redline
+# .docx out. Beside run_eval's engines: python-redlines, word-compare, and redlines
+# made elsewhere, read from a folder.
 
 
-@cache
-def _python_redlines_engine() -> Any:
-    try:
-        engines = importlib.import_module("python_redlines.engines")
-    except ImportError:
-        sys.exit("-a python-redlines needs the python-redlines package: pip install python-redlines")
-    return engines.XmlPowerToolsEngine()
-
-
-def _python_redlines(old: bytes, new: bytes) -> bytes:
+class PythonRedlinesEngine(RedlineEngine):
     """Open-XML-PowerTools' WmlComparer through python-redlines, a third-party reference point."""
-    out = _python_redlines_engine().run_redline("kyralaw-redline-bench", old, new)[0]
-    if not out:
-        raise RuntimeError("python-redlines returned no document")
-    return bytes(out)
+
+    name = "python-redlines"
+
+    @cache  # noqa: B019 - one comparer per engine, and there is one engine per run
+    def _comparer(self) -> Any:
+        try:
+            engines = importlib.import_module("python_redlines.engines")
+        except ImportError:
+            sys.exit("-a python-redlines needs the python-redlines package: pip install python-redlines")
+        return engines.XmlPowerToolsEngine()
+
+    def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
+        out = self._comparer().run_redline("kyralaw-redline-bench", old_docx, new_docx)[0]
+        if not out:
+            raise RuntimeError("python-redlines returned no document")
+        return bytes(out)
 
 
-OPTIONAL: dict[str, Algorithm] = {"python-redlines": _python_redlines}
+class MissingRedline(LookupError):
+    """There is no redline for this pair."""
 
 
-def _from_folder(folder: Path) -> Callable[[str], bytes | None]:
-    def read(pair: str) -> bytes | None:
-        path = folder / f"{pair}.docx"
-        return path.read_bytes() if path.is_file() else None
+def _sha256(data: bytes) -> str:
+    return hashlib.sha256(data).hexdigest()
 
-    return read
+
+def pair_index(data: Path, rows: list[dict[str, Any]]) -> dict[tuple[str, str], str]:
+    """Each pair's id, by the sha256 of its old and new documents."""
+    index: dict[tuple[str, str], str] = {}
+    for row in rows:
+        folder = data / "pairs" / row["id"]
+        key = (_sha256((folder / "old.docx").read_bytes()), _sha256((folder / "new.docx").read_bytes()))
+        if key in index:
+            raise ValueError(f"{row['id']} and {index[key]} have identical documents")
+        index[key] = row["id"]
+    return index
+
+
+class PrebuiltRedlinesEngine(RedlineEngine):
+    """Redlines made elsewhere, one ``<pair id>.docx`` per pair in a folder.
+
+    For an algorithm that cannot run here: one that needs Word, a server or code that is
+    not public. The pair is found from the two documents' contents, so it is called
+    like any other engine. Its time is a file read, so none is reported.
+    """
+
+    measures_time = False
+
+    def __init__(self, name: str, folder: Path, index: dict[tuple[str, str], str]) -> None:
+        self.name = check_engine_name(name)
+        self.folder = folder
+        self.index = index
+
+    def path(self, pair: str) -> Path:
+        return self.folder / f"{pair}.docx"
+
+    def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
+        pair = self.index.get((_sha256(old_docx), _sha256(new_docx)))
+        if pair is None:
+            raise MissingRedline("these documents are not a pair of this dataset")
+        path = self.path(pair)
+        if not path.is_file():
+            raise MissingRedline("no redline file")
+        return path.read_bytes()
+
+
+class WordCompareEngine(PrebuiltRedlinesEngine):
+    """Word's own reference, scored as a candidate: a check on the scorer, which must give 100."""
+
+    def __init__(self, data: Path, index: dict[tuple[str, str], str]) -> None:
+        super().__init__("word-compare", data / "pairs", index)
+
+    def path(self, pair: str) -> Path:
+        return self.folder / pair / "reference.docx"
+
+
+OPTIONAL = ("python-redlines", "word-compare")
 
 
 def run(
     data: Path,
     rows: list[dict[str, Any]],
-    algorithm: Algorithm | None,
-    redlines: Callable[[str], bytes | None] | None,
+    engine: RedlineEngine,
     save_to: Path | None,
     refs: dict[str, Reference],
 ) -> list[PairResult]:
@@ -366,25 +425,19 @@ def run(
         folder = data / "pairs" / pair
         if pair not in refs:
             refs[pair] = read_reference(folder)
-        seconds: float | None = None
-        redline: bytes | None
         try:
-            if algorithm is not None:
-                old, new = (folder / "old.docx").read_bytes(), (folder / "new.docx").read_bytes()
-                started = time.perf_counter()
-                redline = algorithm(old, new)
-                seconds = time.perf_counter() - started
-            else:
-                assert redlines is not None
-                redline = redlines(pair)
-                if redline is None:
-                    results.append(PairResult(pair=pair, scored=False, error="no redline file"))
-                    continue
+            old, new = (folder / "old.docx").read_bytes(), (folder / "new.docx").read_bytes()
+            started = time.perf_counter()
+            redline = engine(old, new)
+            seconds = time.perf_counter() - started if engine.measures_time else None
             result = score_redline(pair, redline, refs[pair], seconds)
+        except MissingRedline as exc:
+            results.append(PairResult(pair=pair, scored=False, error=str(exc)))
+            continue
         except Exception as exc:  # one pair's failure is reported, not fatal
             results.append(PairResult(pair=pair, scored=False, error=f"{type(exc).__name__}: {exc}"[:300]))
             continue
-        if save_to is not None and algorithm is not None:
+        if save_to is not None and engine.measures_time:
             save_to.mkdir(parents=True, exist_ok=True)
             (save_to / f"{pair}.docx").write_bytes(redline)
         results.append(result)
@@ -473,18 +526,29 @@ def main() -> None:
         rows = rows[: args.limit]
 
     names = args.algorithm or ([] if args.redlines else list(ALGORITHMS))
-    refs: dict[str, Reference] = {}
-    all_results: dict[str, list[PairResult]] = {}
+    index = pair_index(data, rows)
+    engines: list[RedlineEngine] = []
     for name in names:
-        algorithm = ALGORITHMS.get(name) or OPTIONAL[name]
-        save_to = args.save_redlines / name if args.save_redlines else None
-        all_results[name] = run(data, rows, algorithm, None, save_to, refs)
-        print(f"{name}: done", file=sys.stderr, flush=True)
+        if name == "python-redlines":
+            engines.append(PythonRedlinesEngine())
+        elif name == "word-compare":
+            engines.append(WordCompareEngine(data, index))
+        else:
+            engines.append(ALGORITHMS[name])
     for spec in args.redlines:
         name, sep, folder = spec.partition("=")
         if not sep or not name or not folder:
             sys.exit(f"--redlines takes NAME=DIR, not {spec!r}")
-        all_results[name] = run(data, rows, None, _from_folder(Path(folder).expanduser()), None, refs)
+        try:
+            engines.append(PrebuiltRedlinesEngine(name, Path(folder).expanduser(), index))
+        except TypeError as exc:
+            sys.exit(f"--redlines {spec!r}: {exc}")
+    refs: dict[str, Reference] = {}
+    all_results: dict[str, list[PairResult]] = {}
+    for engine in engines:
+        save_to = args.save_redlines / engine.name if args.save_redlines else None
+        all_results[engine.name] = run(data, rows, engine, save_to, refs)
+        print(f"{engine.name}: done", file=sys.stderr, flush=True)
 
     summaries = {name: summarise(results) for name, results in all_results.items()}
     print(report(summaries, args.split, len(rows)))

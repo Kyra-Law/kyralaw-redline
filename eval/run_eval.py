@@ -48,7 +48,6 @@ import json
 import statistics
 import sys
 import time
-import warnings
 import zipfile
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -64,40 +63,20 @@ from generate import CORPUS_PATH, STYLES, score_tokens
 
 from kyralaw_redline import (
     DiffSegment,
-    InPlaceFallbackWarning,
     extract_paragraphs,
     extract_text,
     read_tracked_changes,
-    redline_docx,
     render_segments_docx,
 )
 from kyralaw_redline.diff import _tokenize
+from kyralaw_redline.engine import AutoEngine, InPlaceEngine, RebuildEngine, RedlineEngine
 
 FIXED_DATE = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
-Algorithm = Callable[[bytes, bytes], bytes]
-
-
-# Algorithms ---------------------------------------------------------------
-
-
-def _kyralaw_in_place(old_docx: bytes, new_docx: bytes) -> bytes:
-    """The tracked changes written into the new document itself. Strict: a pair it
-    cannot redline in place fails here rather than falling back unseen."""
-    return redline_docx(old_docx, new_docx, date=FIXED_DATE, mode="in-place")
-
-
-def _kyralaw_auto(old_docx: bytes, new_docx: bytes) -> bytes:
-    """In place, rebuilt when in place is not possible: the library's default."""
-    with warnings.catch_warnings():
-        # kyralaw-redline-in-place refuses the same pairs, and that is where they are counted.
-        warnings.simplefilter("ignore", InPlaceFallbackWarning)
-        return redline_docx(old_docx, new_docx, date=FIXED_DATE, mode="auto")
-
-
-def _kyralaw_rebuild(old_docx: bytes, new_docx: bytes) -> bytes:
-    """The same diff written into a new, plain document."""
-    return redline_docx(old_docx, new_docx, date=FIXED_DATE, mode="rebuild")
+# Engines ------------------------------------------------------------------
+#
+# Every algorithm is a RedlineEngine (kyralaw_redline.engine): two .docx files in,
+# one redline .docx out. To add one, subclass RedlineEngine and list it in ENGINES.
 
 
 def _opcode_segments(old: list[str], new: list[str], isjunk: Callable[[str], bool] | None) -> list[DiffSegment]:
@@ -114,29 +93,39 @@ def _opcode_segments(old: list[str], new: list[str], isjunk: Callable[[str], boo
     return out
 
 
-def _line_diff(old_docx: bytes, new_docx: bytes) -> bytes:
-    """What a line diff gives: any changed paragraph is deleted and
-    reinserted whole."""
-    old = extract_text(old_docx).splitlines(keepends=True)
-    new = extract_text(new_docx).splitlines(keepends=True)
-    return render_segments_docx(_opcode_segments(old, new, lambda s: not s.strip()), date=FIXED_DATE)
+class LineDiffEngine(RedlineEngine):
+    """What a line diff gives: any changed paragraph is deleted and reinserted whole."""
+
+    name = "line-diff"
+
+    def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
+        old = extract_text(old_docx).splitlines(keepends=True)
+        new = extract_text(new_docx).splitlines(keepends=True)
+        return render_segments_docx(_opcode_segments(old, new, lambda s: not s.strip()), date=FIXED_DATE)
 
 
-def _token_diff(old_docx: bytes, new_docx: bytes) -> bytes:
+class TokenDiffEngine(RedlineEngine):
     """A plain token-level difflib over the whole document, with none of the
     paragraph alignment or anchoring heuristics. Isolates what those add."""
-    old = _tokenize(extract_text(old_docx))
-    new = _tokenize(extract_text(new_docx))
-    return render_segments_docx(_opcode_segments(old, new, str.isspace), date=FIXED_DATE)
+
+    name = "token-diff"
+
+    def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
+        old = _tokenize(extract_text(old_docx))
+        new = _tokenize(extract_text(new_docx))
+        return render_segments_docx(_opcode_segments(old, new, str.isspace), date=FIXED_DATE)
 
 
-ALGORITHMS: dict[str, Algorithm] = {
-    "kyralaw-redline-in-place": _kyralaw_in_place,
-    "kyralaw-redline-auto": _kyralaw_auto,
-    "kyralaw-redline-rebuild": _kyralaw_rebuild,
-    "token-diff": _token_diff,
-    "line-diff": _line_diff,
-}
+# kyralaw-redline-in-place is strict: a pair it cannot redline in place fails
+# loudly here, where kyralaw-redline-auto would rebuild it with a warning.
+ENGINES: tuple[RedlineEngine, ...] = (
+    InPlaceEngine(date=FIXED_DATE),
+    AutoEngine(date=FIXED_DATE),
+    RebuildEngine(date=FIXED_DATE),
+    TokenDiffEngine(),
+    LineDiffEngine(),
+)
+ALGORITHMS: dict[str, RedlineEngine] = {engine.name: engine for engine in ENGINES}
 
 # The kyralaw-redline algorithms the CI floor applies to.
 OURS = ("kyralaw-redline-in-place", "kyralaw-redline-auto", "kyralaw-redline-rebuild")
@@ -255,7 +244,7 @@ def _paragraphs(docx: bytes, view: Literal["accepted", "original"]) -> list[str]
     return [] if paras == [""] else paras
 
 
-def score_pair(pair: dict[str, object], algorithm: Algorithm, save_to: Path | None) -> PairResult:
+def score_pair(pair: dict[str, object], algorithm: RedlineEngine, save_to: Path | None) -> PairResult:
     old = pair["old"]
     new = pair["new"]
     assert isinstance(old, list) and isinstance(new, list)
