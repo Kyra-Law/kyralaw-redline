@@ -60,6 +60,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import render
 from generate import CORPUS_PATH, STYLES, score_tokens
+from kyralaw_native import NativeEngine
 
 from kyralaw_redline import (
     DiffSegment,
@@ -122,6 +123,7 @@ ENGINES: tuple[RedlineEngine, ...] = (
     InPlaceEngine(date=FIXED_DATE),
     AutoEngine(date=FIXED_DATE),
     RebuildEngine(date=FIXED_DATE),
+    NativeEngine(date=FIXED_DATE),
     TokenDiffEngine(),
     LineDiffEngine(),
 )
@@ -164,6 +166,9 @@ class PairResult:
     seconds: float
     integrity_errors: list[str] = field(default_factory=list)
     styles_kept: float = 0.0
+    # Why the engine produced no redline for this pair. A refused pair is counted
+    # and listed, never averaged in.
+    refused: str | None = None
 
     @property
     def score(self) -> float:
@@ -252,8 +257,22 @@ def score_pair(pair: dict[str, object], algorithm: RedlineEngine, save_to: Path 
     assert new_styles is None or isinstance(new_styles, list)
     old_docx, new_docx = _version(pair, "old"), _version(pair, "new")
 
+    edit_types = pair["edit_types"]
+    assert isinstance(edit_types, list)
     start = time.perf_counter()
-    out = algorithm(old_docx, new_docx)
+    try:
+        out = algorithm(old_docx, new_docx)
+    except Exception as exc:  # one pair's refusal is reported, not fatal
+        nothing = PRF(0.0, 0.0, 0.0)
+        return PairResult(
+            id=str(pair["id"]),
+            family=str(pair["family"]),
+            edit_types=[str(t) for t in edit_types],
+            insert=nothing,
+            delete=nothing,
+            seconds=time.perf_counter() - start,
+            refused=f"{type(exc).__name__}: {exc}",
+        )
     seconds = time.perf_counter() - start
 
     inserted, deleted = read_tracked_changes(out)
@@ -274,8 +293,6 @@ def score_pair(pair: dict[str, object], algorithm: RedlineEngine, save_to: Path 
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(out)
 
-    edit_types = pair["edit_types"]
-    assert isinstance(edit_types, list)
     return PairResult(
         id=str(pair["id"]),
         family=str(pair["family"]),
@@ -295,8 +312,10 @@ def _mean(values: list[float]) -> float:
     return statistics.fmean(values) if values else float("nan")
 
 
-def summarise(results: list[PairResult]) -> dict[str, float]:
+def summarise(all_results: list[PairResult]) -> dict[str, float]:
+    results = [r for r in all_results if r.refused is None]
     return {
+        "refused": float(len(all_results) - len(results)),
         "score": 100 * _mean([r.score for r in results]),
         "insert_f1": _mean([r.insert.f1 for r in results]),
         "delete_f1": _mean([r.delete.f1 for r in results]),
@@ -312,16 +331,17 @@ def summarise(results: list[PairResult]) -> dict[str, float]:
 def report(all_results: dict[str, list[PairResult]], corpus: str) -> str:
     lines = [f"# Redline eval, corpus `{corpus}`", ""]
     lines += [
-        "| Algorithm | Score | Insert F1 | Delete F1 | Insert P | Delete P | Integrity failures | Styles kept "
-        "| Time (s) |",
-        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
+        "| Algorithm | Score | Insert F1 | Delete F1 | Insert P | Delete P | Integrity failures | Refused "
+        "| Styles kept | Time (s) |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |",
     ]
     for name, results in all_results.items():
         s = summarise(results)
         lines.append(
             f"| {name} | {s['score']:.2f} | {s['insert_f1']:.3f} | {s['delete_f1']:.3f} | "
             f"{s['insert_precision']:.3f} | {s['delete_precision']:.3f} | "
-            f"{int(s['integrity_failures'])}/{int(s['pairs'])} | {s['styles_kept']:.1%} | {s['seconds_total']:.2f} |"
+            f"{int(s['integrity_failures'])}/{int(s['pairs'])} | {int(s['refused'])} | {s['styles_kept']:.1%} | "
+            f"{s['seconds_total']:.2f} |"
         )
 
     edit_types = sorted({t for rs in all_results.values() for r in rs if r.family == "single" for t in r.edit_types})
@@ -342,7 +362,7 @@ def report(all_results: dict[str, list[PairResult]], corpus: str) -> str:
         lines.append(f"| {label} | " + " | ".join(cells) + " |")
 
     for name, results in all_results.items():
-        worst = sorted(results, key=lambda r: r.score)[:5]
+        worst = sorted((r for r in results if r.refused is None), key=lambda r: r.score)[:5]
         lines += [
             "",
             f"## Lowest-scoring pairs: {name}",
@@ -355,6 +375,10 @@ def report(all_results: dict[str, list[PairResult]], corpus: str) -> str:
         if failures:
             lines += ["", f"**Integrity failures ({len(failures)}):**", ""]
             lines += [f"- `{r.id}`: {'; '.join(r.integrity_errors)}" for r in failures]
+        refusals = [r for r in results if r.refused is not None]
+        if refusals:
+            lines += ["", f"**Refused, left out of the averages ({len(refusals)}):**", ""]
+            lines += [f"- `{r.id}`: {r.refused}" for r in refusals]
     return "\n".join(lines) + "\n"
 
 
@@ -399,10 +423,10 @@ def main() -> None:
             sys.exit(f"--min-score needs one of {', '.join(OURS)} among the algorithms")
         for name in ours:
             s = summarise(all_results[name])
-            if s["integrity_failures"] or s["score"] < args.min_score:
+            if s["integrity_failures"] or s["refused"] or s["score"] < args.min_score:
                 sys.exit(
                     f"{name} scored {s['score']:.2f} (minimum {args.min_score}) "
-                    f"with {int(s['integrity_failures'])} integrity failures"
+                    f"with {int(s['integrity_failures'])} integrity failures and {int(s['refused'])} refused pairs"
                 )
 
 

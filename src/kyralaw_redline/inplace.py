@@ -1436,7 +1436,7 @@ def _place_deleted(paragraph: _Para, ctx: _Context, old_body: etree._Element, ne
 
 
 def _correspondence(
-    steps: list[ParagraphAlignment], old: list[_Para], new: list[_Para]
+    steps: list[ParagraphAlignment], old: list[_Para], new: list[_Para], *, weighted: bool = True
 ) -> dict[etree._Element, etree._Element]:
     """Which revised-document element each base-document element became.
 
@@ -1460,7 +1460,7 @@ def _correspondence(
         result[old_para.element] = new_para.element
         for old_level, new_level in zip(old_para.path, new_para.path, strict=False):
             for pair in zip(old_level, new_level, strict=True):
-                votes[pair] += 1 + len(old_para.text.strip())
+                votes[pair] += 1 + len(old_para.text.strip()) if weighted else 1
     taken: set[etree._Element] = set()
     for (old_element, new_element), _count in votes.most_common():
         if old_element in result or new_element in taken or old_element.tag != new_element.tag:
@@ -1652,6 +1652,10 @@ def _verify(root: etree._Element, old_texts: list[str], new_texts: list[str]) ->
 # --------------------------------------------------------------------------
 
 
+#: How a renderer aligns two documents' paragraphs (:func:`align_paragraphs`).
+Aligner = Callable[[list[str], list[str]], list[ParagraphAlignment]]
+
+
 def redline_in_place(
     old_docx: bytes,
     new_docx: bytes,
@@ -1679,6 +1683,25 @@ def redline_in_place(
     changes the base document, and rejecting everything the base document's own
     base.
     """
+    return _render(old_docx, new_docx, author=author, date=date, keep_pending=keep_pending)
+
+
+def _render(
+    old_docx: bytes,
+    new_docx: bytes,
+    *,
+    author: str = DEFAULT_AUTHOR,
+    date: datetime | None = None,
+    keep_pending: bool = False,
+    align: Aligner = align_paragraphs,
+    respect_tables: bool = True,
+) -> bytes:
+    """:func:`redline_in_place`, with what it aligns by and how it treats tables open.
+
+    The defaults are today's renderer. ``eval/native.py`` freezes the first version
+    as a baseline: its own alignment, ``respect_tables=False`` (no
+    :func:`_respect_tables`, rows matched by unweighted votes).
+    """
     _, _, old_root = _load(old_docx)
     package, main_name, new_root = _load(new_docx)
     skip: frozenset[str] = frozenset()
@@ -1697,7 +1720,11 @@ def redline_in_place(
     _collect(new_body, (), new, skip)
     old_texts = [p.text for p in old]
     new_texts = [p.text for p in new]
-    steps, counterpart = _respect_tables(align_paragraphs(old_texts, new_texts), old, new)
+    if respect_tables:
+        steps, counterpart = _respect_tables(align(old_texts, new_texts), old, new)
+    else:
+        steps = align(old_texts, new_texts)
+        counterpart = _correspondence(steps, old, new, weighted=False)
 
     revisions = _Revisions(
         (new_root, old_root) if keep_pending else (new_root,), author, date or datetime.now(timezone.utc)
