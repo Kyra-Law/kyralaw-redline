@@ -1442,10 +1442,14 @@ def _correspondence(
 
     Paragraphs come straight from the alignment. Tables, rows and cells are
     voted for by the paired paragraphs inside them, one counterpart each, most
-    votes first. Within a pair of rows, a cell nothing voted for then takes the
-    next unclaimed cell in reading order: a cell whose text was rewritten
-    entirely is still the same cell, and only a cell with no partner left is a
-    removed column.
+    votes first. A pair votes with the length of its text, plus one: a clause
+    found in both is far better evidence of which row is which than a "2.50%"
+    or an empty cell, which recur from row to row, and counting every pair
+    alike once matched a row to its neighbour on the strength of its blank
+    cells. Within a pair of rows, a cell nothing voted for then takes the next
+    unclaimed cell in reading order: a cell whose text was rewritten entirely
+    is still the same cell, and only a cell with no partner left is a removed
+    column.
     """
     result: dict[etree._Element, etree._Element] = {}
     votes: Counter[tuple[etree._Element, etree._Element]] = Counter()
@@ -1456,7 +1460,7 @@ def _correspondence(
         result[old_para.element] = new_para.element
         for old_level, new_level in zip(old_para.path, new_para.path, strict=False):
             for pair in zip(old_level, new_level, strict=True):
-                votes[pair] += 1
+                votes[pair] += 1 + len(old_para.text.strip())
     taken: set[etree._Element] = set()
     for (old_element, new_element), _count in votes.most_common():
         if old_element in result or new_element in taken or old_element.tag != new_element.tag:
@@ -1479,6 +1483,107 @@ def _correspondence(
                 taken.add(new_cells[cursor])
                 cursor += 1
     return result
+
+
+def _same_containers(old_para: _Para, new_para: _Para, counterpart: dict[etree._Element, etree._Element]) -> bool:
+    """Whether a paired paragraph sits in the counterparts of its own table, row and cell."""
+    if len(old_para.path) != len(new_para.path):
+        return False
+    return all(
+        counterpart.get(old_element) is new_element
+        for old_level, new_level in zip(old_para.path, new_para.path, strict=True)
+        for old_element, new_element in zip(old_level, new_level, strict=True)
+    )
+
+
+def _respect_tables(
+    steps: list[ParagraphAlignment], old: list[_Para], new: list[_Para]
+) -> tuple[list[ParagraphAlignment], dict[etree._Element, etree._Element]]:
+    """The alignment with every pair kept inside corresponding table rows and cells.
+
+    The paragraph alignment reads the documents as one list of paragraphs and does
+    not know about rows, so it can pair a cell with identical text in another row:
+    one row's "2.50%" with the next row's. Once the rows themselves are matched
+    (:func:`_correspondence`), such a pair sits in rows that do not correspond, and
+    written as an edit it put text in the wrong row: rejecting every change then no
+    longer gave the base document, and the whole redline was refused.
+
+    So, until nothing changes:
+
+    * a pair that does not sit in the counterparts of its own table, row and cell is
+      split into a deletion and an insertion, and the rows are matched again;
+    * paragraphs left without a partner in a pair of corresponding cells are aligned
+      again, by :func:`align_paragraphs` itself on just those cells, so a value that
+      stayed in its cell is not shown as deleted and reinserted, and one that changed
+      gets its word diff. A pair split once is never formed again, which is what
+      makes this end.
+
+    Every word diff still comes from :mod:`kyralaw_redline.diff`.
+    """
+    refused: set[tuple[int, int]] = set()
+    while True:
+        counterpart = _correspondence(steps, old, new)
+        kept: list[ParagraphAlignment] = []
+        for step in steps:
+            if (
+                step.old_index is not None
+                and step.new_index is not None
+                and not _same_containers(old[step.old_index], new[step.new_index], counterpart)
+            ):
+                refused.add((step.old_index, step.new_index))
+                kept.append(ParagraphAlignment(step.old_index, None, None))
+                kept.append(ParagraphAlignment(None, step.new_index, None))
+            else:
+                kept.append(step)
+        if len(kept) != len(steps):
+            steps = kept
+            continue
+        repaired = _pair_within_cells(steps, old, new, counterpart, refused)
+        if repaired is None:
+            return steps, counterpart
+        steps = repaired
+
+
+def _pair_within_cells(
+    steps: list[ParagraphAlignment],
+    old: list[_Para],
+    new: list[_Para],
+    counterpart: dict[etree._Element, etree._Element],
+    refused: set[tuple[int, int]],
+) -> list[ParagraphAlignment] | None:
+    """Pair the unpartnered paragraphs of corresponding cells; None when there is nothing to pair."""
+    old_by_cell: dict[etree._Element, list[int]] = {}
+    new_by_cell: dict[etree._Element, list[int]] = {}
+    for step in steps:
+        if step.old_index is not None and step.new_index is None and old[step.old_index].path:
+            target = counterpart.get(old[step.old_index].path[-1][2])
+            if target is not None:
+                old_by_cell.setdefault(target, []).append(step.old_index)
+        elif step.new_index is not None and step.old_index is None and new[step.new_index].path:
+            new_by_cell.setdefault(new[step.new_index].path[-1][2], []).append(step.new_index)
+    pairs: dict[int, ParagraphAlignment] = {}
+    for cell, old_ids in old_by_cell.items():
+        new_ids = new_by_cell.get(cell)
+        if not new_ids:
+            continue
+        for sub in align_paragraphs([old[i].text for i in old_ids], [new[j].text for j in new_ids]):
+            if sub.old_index is None or sub.new_index is None:
+                continue
+            i, j = old_ids[sub.old_index], new_ids[sub.new_index]
+            if (i, j) not in refused:
+                pairs[i] = ParagraphAlignment(i, j, sub.segments)
+    if not pairs:
+        return None
+    partnered = {step.new_index for step in pairs.values()}
+    out: list[ParagraphAlignment] = []
+    for step in steps:
+        if step.new_index is None and step.old_index in pairs:
+            out.append(pairs[step.old_index])
+        elif step.old_index is None and step.new_index in partnered:
+            continue
+        else:
+            out.append(step)
+    return out
 
 
 # --------------------------------------------------------------------------
@@ -1592,7 +1697,7 @@ def redline_in_place(
     _collect(new_body, (), new, skip)
     old_texts = [p.text for p in old]
     new_texts = [p.text for p in new]
-    steps = align_paragraphs(old_texts, new_texts)
+    steps, counterpart = _respect_tables(align_paragraphs(old_texts, new_texts), old, new)
 
     revisions = _Revisions(
         (new_root, old_root) if keep_pending else (new_root,), author, date or datetime.now(timezone.utc)
@@ -1601,7 +1706,7 @@ def redline_in_place(
         revisions=revisions,
         old_by_element={p.element: p for p in old},
         deleted={old[s.old_index].element for s in steps if s.old_index is not None and s.new_index is None},
-        counterpart=_correspondence(steps, old, new),
+        counterpart=counterpart,
         keep_pending=keep_pending,
     )
 

@@ -645,3 +645,66 @@ def test_align_paragraphs_pairs_edited_paragraphs_and_leaves_the_rest_one_sided(
     assert edited is not None
     assert [(s.kind, s.text) for s in edited if s.kind != "equal"] == [("delete", "100"), ("insert", "200")]
     assert steps[0].segments is None and steps[3].segments is None
+
+
+def test_a_deleted_row_whose_cells_also_appear_in_other_rows_rejects_back_to_the_base() -> None:
+    """A margin grid where the middle row goes and the rest shift: the paragraph
+    alignment, which does not know about rows, pairs old row 1's rates with new row
+    2's identical ones, and old row 2's "Tier B" with new row 3's "Tier C". Placed
+    by those pairs, the deleted copy of old row 2 landed after its own first cell,
+    so rejecting every change no longer gave the base table."""
+    old, new = docx.Document(), docx.Document()
+    _table(
+        old,
+        [
+            ["Tier A", "Leverage at or above 3.00 to 1.00", "2.50%", "1.50%"],
+            ["Tier B", "", "2.50%", "1.50%"],
+            ["Tier B", "Leverage below 3.00 to 1.00", "2.25%", "1.25%"],
+        ],
+    )
+    _table(
+        new,
+        [
+            ["Tier A", "Leverage at or above 3.00 to 1.00", "2.75%", "1.75%"],
+            ["Tier B", "Leverage above 3.50 to 1.00", "2.50%", "1.50%"],
+            ["Tier C", "Leverage above 2.75 to 1.00", "2.25%", "1.25%"],
+        ],
+    )
+
+    root = _redline(old, new)
+
+    assert _texts(root, "reject") == [
+        "Tier A", "Leverage at or above 3.00 to 1.00", "2.50%", "1.50%",
+        "Tier B", "2.50%", "1.50%",
+        "Tier B", "Leverage below 3.00 to 1.00", "2.25%", "1.25%",
+    ]  # fmt: skip
+    assert _texts(root, "accept") == [
+        "Tier A", "Leverage at or above 3.00 to 1.00", "2.75%", "1.75%",
+        "Tier B", "Leverage above 3.50 to 1.00", "2.50%", "1.50%",
+        "Tier C", "Leverage above 2.75 to 1.00", "2.25%", "1.25%",
+    ]  # fmt: skip
+
+
+def test_a_row_added_to_a_table_of_recurring_values_is_one_inserted_row() -> None:
+    """Every row holds "25,000", a row is added in the middle, and an edit above the
+    table stops the line diff's common prefix early, so its common suffix runs back
+    through the table and pairs the old second row's value with the added row's. Kept
+    as it was, the added row was not marked as an inserted row at all; split without
+    pairing again, the value left in its own cell came out deleted and reinserted.
+    Only the opening figure and the new row are changes."""
+    head = [["Vesting date", "Shares vesting"], ["First anniversary", "25,000"], ["Second anniversary", "25,000"]]
+    tail = [["Third anniversary", "25,000"]]
+    old, new = _document("The Founder holds 100,000 Shares."), _document("The Founder holds 125,000 Shares.")
+    _table(old, [*head, *tail])
+    _table(new, [*head, ["Interim date", "25,000"], *tail])
+
+    root = _redline(old, new)
+
+    inserted_rows = [r for r in root.iter(_q("tr")) if r.find(f"{_q('trPr')}/{_q('ins')}") is not None]
+    assert ["".join(t.text or "" for t in r.iter(_q("t"))) for r in inserted_rows] == ["Interim date25,000"]
+    assert sorted(_inserted(root)) == ["125", "25,000", "Interim date"]
+    assert _deleted(root) == ["100"]
+    assert _texts(root, "reject") == [
+        "The Founder holds 100,000 Shares.",
+        *[cell for row in [*head, *tail] for cell in row],
+    ]

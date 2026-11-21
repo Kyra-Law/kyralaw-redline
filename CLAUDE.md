@@ -15,7 +15,10 @@ Guidance for Claude Code working in this repository. This repository is intended
    segments `compute_redline_segments` produces, and `inplace.py` (in-place) exactly what
    `align_paragraphs` produces; both live in `diff.py`. A second diff in either renderer makes the
    shipped file a different algorithm from the one the tests and the evaluation measure, and the
-   two renderers would stop marking the same changes.
+   two renderers would stop marking the same changes. The one liberty `inplace.py` takes is with
+   tables (`_respect_tables`): a pair that crosses table rows is shown as a deletion plus an
+   insertion, and paragraphs then left without a partner in corresponding cells are aligned again
+   by `align_paragraphs` itself. Every word diff still comes from `diff.py`.
 5. **Never fail silently.** A skipped pair, an integrity failure or a missing input is reported
    with its magnitude, never folded into a score.
 
