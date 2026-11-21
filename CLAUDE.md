@@ -11,9 +11,11 @@ Guidance for Claude Code working in this repository. This repository is intended
    corpus is synthetic by design; never add real documents to it.
 2. **Do not push without an explicit instruction.** Committing locally is fine.
 3. **No em dashes** in any output: code, comments, docs, commit messages.
-4. **The renderer computes no diff of its own.** `docx_io.py` renders exactly the segments
-   `diff.py` produces. A second diff in the renderer makes the shipped file a different algorithm
-   from the one the tests and the evaluation measure.
+4. **The renderers compute no diff of their own.** `docx_io.py` (rebuild) renders exactly the
+   segments `compute_redline_segments` produces, and `inplace.py` (in-place) exactly what
+   `align_paragraphs` produces; both live in `diff.py`. A second diff in either renderer makes the
+   shipped file a different algorithm from the one the tests and the evaluation measure, and the
+   two renderers would stop marking the same changes.
 5. **Never fail silently.** A skipped pair, an integrity failure or a missing input is reported
    with its magnitude, never folded into a score.
 

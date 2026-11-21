@@ -5,7 +5,8 @@ evaluation set to measure them.
 
 ```bash
 pip install kyralaw-redline   # once published; for now: pip install git+https://github.com/Kyra-Law/kyralaw-redline
-kyralaw-redline old.docx new.docx -o redline.docx
+kyralaw-redline old.docx new.docx -o redline.docx                  # in place, rebuilding if it must
+kyralaw-redline old.docx new.docx -o redline.docx --mode rebuild   # a clean, plain document
 ```
 
 ```python
@@ -21,7 +22,22 @@ for seg in compute_redline_segments("The fee is £500.", "The fee is £750."):
 # equal '.'
 ```
 
-Pure Python. The only dependency is `python-docx`. No Word, no LibreOffice, no .NET.
+Pure Python. The only dependencies are `python-docx` and `lxml`. No Word, no LibreOffice, no .NET.
+
+## Two renderers, one diff
+
+The diff is computed once ([`diff.py`](src/kyralaw_redline/diff.py)) and written one of two ways,
+chosen with `redline_docx(..., mode=...)`:
+
+| Mode | Writes | Keeps the document's formatting | When to use |
+| --- | --- | --- | --- |
+| `"in-place"` | the tracked changes into the new document's own XML, the way Word's Compare does ([`inplace.py`](src/kyralaw_redline/inplace.py)) | yes: styles, numbering, tables, headers, footers, comments, sections | the redline someone will read |
+| `"rebuild"` | a new, plain document built from the two texts ([`docx_io.py`](src/kyralaw_redline/docx_io.py)) | no | a content-only redline; the fallback |
+| `"auto"` (default) | in place, or rebuilt when in place is not possible, with an `InPlaceFallbackWarning` | when it can | the default |
+
+Before returning, the in-place renderer reads its own result back: accepting every change must give
+the new document and rejecting every change the old one. A result that fails is never returned:
+`"in-place"` raises `InPlaceRedlineError`, and `"auto"` rebuilds instead and warns.
 
 ## Why
 
@@ -42,8 +58,10 @@ regression test that fails when the heuristic is removed.
 | Function | Does |
 | --- | --- |
 | `compute_redline_segments(old, new)` | the diff: an ordered list of `DiffSegment(kind, text)`, lossless both ways |
-| `build_redline_docx(old, new, *, author, date)` | diff two texts and render a `.docx` with `w:ins` / `w:del` |
-| `redline_docx(old_docx, new_docx, *, author, date)` | the same, from two `.docx` files |
+| `redline_docx(old_docx, new_docx, *, author, date, mode)` | redline two `.docx` files; `mode` is `"auto"`, `"in-place"` or `"rebuild"` (above) |
+| `redline_in_place(old_docx, new_docx, *, author, date, keep_pending)` | the in-place renderer itself; `keep_pending` keeps both documents' pending revisions for a revised document edited directly from the base |
+| `build_redline_docx(old, new, *, author, date)` | the rebuild renderer: diff two texts and render a new `.docx` with `w:ins` / `w:del` |
+| `align_paragraphs(old, new)` | the paragraph alignment both renderers use, with a word diff per edited pair |
 | `render_segments_docx(segments, *, author, date)` | render any segment list through the same writer |
 | `extract_text(docx, *, view)` | a `.docx`'s body text, pending changes accepted (`view="accepted"`) or rejected (`"original"`) |
 | `extract_paragraphs(docx, *, view)` | the same, one string per paragraph, empty ones included |
@@ -55,15 +73,18 @@ joining `equal` and `insert` reproduces the new text.
 
 ## Limitations
 
-The output is rebuilt from text, in a blank document: it is a content-correct redline, not a
-formatting-faithful one.
-
-- Not carried over: run formatting, styles, list numbering, tables (cells become paragraphs),
-  headers, footers, footnotes, comments, images, hyperlinks.
+Both renderers:
 - A moved paragraph shows as a deletion plus an insertion.
 - There is no character-level diff inside a word: "Supplier" to "Suppliers" redlines the word.
+- Formatting-only changes are not marked.
+- Headers, footers, footnotes and text boxes are not compared.
 
-Diffing the original document's runs, so formatting survives, is the obvious next step.
+In place: the new document is kept whole, but inside *deleted* text only the words and their run
+formatting come back; images, hyperlink targets, fields, bookmarks and comment anchors in it do not.
+
+Rebuild: the output is a blank document built from text. Run formatting, styles, list numbering,
+tables (cells become paragraphs), headers, footers, footnotes, comments, images and hyperlinks are
+not carried over.
 
 ## The evaluation
 
@@ -142,9 +163,13 @@ over pairs. Two further checks are reported beside it:
 
 | Algorithm | Score | Insert F1 | Delete F1 | Integrity failures | Styles kept |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| kyralaw-redline | 98.88 | 0.988 | 0.990 | 0/265 | 8.9% |
+| `kyralaw-redline-in-place` | 98.92 | 0.988 | 0.990 | 0/265 | 83.9% |
+| `kyralaw-redline-rebuild` | 98.88 | 0.988 | 0.990 | 0/265 | 8.9% |
 | `difflib-words`: token-level difflib, no alignment or heuristics | 91.45 | 0.894 | 0.935 | 0/265 | 8.9% |
 | `paragraph-baseline`: a line diff | 52.68 | 0.530 | 0.523 | 0/265 | 8.9% |
+
+The two kyralaw-redline renderers mark the same changes, since they share one diff; the in-place
+one never had to fall back on this corpus.
 
 The weak spot is **dense edits (92.50)**: adjacent edits in one paragraph still sometimes make the
 merge heuristics replace a whole span instead of making the small edits within it.
@@ -154,9 +179,9 @@ rows, deleting one row paired each remaining row with its neighbour. The cause w
 failure on a real negotiated agreement, a recurring line anchoring the line-level diff in the wrong
 place, and anchoring on lines unique to both versions fixed both (100.00 since).
 
-**Styles kept** is 8.9% for all three because none carries styles over: each writes its redline
-into a blank document, so only the plain paragraphs match, and tables come out as paragraphs. That
-is the library's documented limitation, made visible.
+**Styles kept** is 8.9% for everything that writes into a blank document: only the plain
+paragraphs match, and tables come out as paragraphs. The in-place renderer keeps the new document's
+own paragraphs, so most of their styles survive (83.9%).
 
 **What the scores don't tell you.** The corpus is synthetic: invented agreements with scripted
 edits. Real negotiated documents contain moves, renumbering, formatting-only changes and editors'
@@ -195,15 +220,29 @@ kept. Score = 100 x the mean of insert F1, delete F1 and fidelity.
 | Algorithm | Score | Text F1 | Fidelity | Integrity failures | Median time |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Word's reference scored as a candidate (a check on the scorer) | 100.00 | 100.00 | 1.000 | 0 | |
-| [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0 | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
-| Kyra Law's platform redline (not open source) | 93.94 | 91.31 | 0.992 | 3 | 116 ms |
-| kyralaw-redline | 78.72 | 92.39 | 0.514 | 0 | 384 ms |
+| [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0 (Open XML PowerTools) | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
+| kyralaw-redline, `mode="in-place"` (3 pairs refused, left out) | 94.08 | 91.34 | 0.996 | 0 | 216 ms |
+| **kyralaw-redline, `mode="auto"`** (in place; those 3 rebuilt) | **94.01** | 91.34 | 0.993 | 0 | 220 ms |
+| Kyra Law's platform redline, as it ships today | 93.94 | 91.31 | 0.992 | 3 | 116 ms |
+| kyralaw-redline, `mode="rebuild"` | 78.72 | 92.39 | 0.514 | 0 | 353 ms |
+| Kyra Law's platform text renderer, its fallback | 67.53 | 89.89 | 0.228 | 685 | 140 ms |
 | `difflib-words` | 62.60 | 68.02 | 0.518 | 0 | 1.57 s |
 | `paragraph-baseline` | 49.68 | 48.56 | 0.519 | 0 | 220 ms |
 
-kyralaw-redline marks the change best of all, and loses on fidelity because it writes into a blank
-document (see Limitations): tables, headers and footers do not survive. Writing into the original
-document's own XML is what closes that gap, as the two redlines that do it show.
+- **The in-place renderer is Kyra Law's platform redline, open-sourced** onto this library's diff.
+  On the 682 pairs both write in place they score 94.08 and 94.02.
+- **Fallbacks differ.** `"auto"` falls back to `"rebuild"`, which passes the accept/reject check.
+  The platform falls back to a text renderer that writes its own markup (bold as `**`, tables as
+  pipe rows) into the redline, so every one of its redlines fails that check, and so do the
+  platform redline's 3 fallbacks.
+- **Rebuild marks the text about a point better than in-place**, though they share one diff. They
+  read the documents differently: rebuild diffs the text `extract_text` gives, in-place the
+  paragraphs of the documents themselves, table cells included. Which reading costs what is worth
+  a closer look.
+- **Fidelity decides the ranking.** Rebuild writes into a blank document, so tables, headers and
+  footers do not survive; in place they all do.
+- **Times** are from producing each redline from the two files; the two platform rows were timed
+  in a separate run that also reads the documents' text. Treat them as relative.
 
 ## Development
 

@@ -79,8 +79,15 @@ Algorithm = Callable[[bytes, bytes], bytes]
 # Algorithms ---------------------------------------------------------------
 
 
-def _kyralaw_redline(old_docx: bytes, new_docx: bytes) -> bytes:
-    return redline_docx(old_docx, new_docx, date=FIXED_DATE)
+def _kyralaw_in_place(old_docx: bytes, new_docx: bytes) -> bytes:
+    """The tracked changes written into the new document itself. Strict: a pair it
+    cannot redline in place fails here rather than falling back unseen."""
+    return redline_docx(old_docx, new_docx, date=FIXED_DATE, mode="in-place")
+
+
+def _kyralaw_rebuild(old_docx: bytes, new_docx: bytes) -> bytes:
+    """The same diff written into a new, plain document."""
+    return redline_docx(old_docx, new_docx, date=FIXED_DATE, mode="rebuild")
 
 
 def _opcode_segments(old: list[str], new: list[str], isjunk: Callable[[str], bool] | None) -> list[DiffSegment]:
@@ -114,10 +121,14 @@ def _difflib_words(old_docx: bytes, new_docx: bytes) -> bytes:
 
 
 ALGORITHMS: dict[str, Algorithm] = {
-    "kyralaw-redline": _kyralaw_redline,
+    "kyralaw-redline-in-place": _kyralaw_in_place,
+    "kyralaw-redline-rebuild": _kyralaw_rebuild,
     "difflib-words": _difflib_words,
     "paragraph-baseline": _paragraph_baseline,
 }
+
+# The two renderers the CI floor applies to.
+OURS = ("kyralaw-redline-in-place", "kyralaw-redline-rebuild")
 
 
 # Scoring ------------------------------------------------------------------
@@ -358,7 +369,7 @@ def main() -> None:
     parser.add_argument(
         "--min-score",
         type=float,
-        help="exit 1 if kyralaw-redline scores below this, or has any integrity failure (for CI)",
+        help="exit 1 if either kyralaw-redline renderer scores below this, or has any integrity failure (for CI)",
     )
     args = parser.parse_args()
 
@@ -383,15 +394,16 @@ def main() -> None:
         args.json.write_text(json.dumps(payload, indent=2), encoding="utf-8")
 
     if args.min_score is not None:
-        ours = all_results.get("kyralaw-redline")
-        if ours is None:
-            sys.exit("--min-score needs kyralaw-redline among the algorithms")
-        s = summarise(ours)
-        if s["integrity_failures"] or s["score"] < args.min_score:
-            sys.exit(
-                f"kyralaw-redline scored {s['score']:.2f} (minimum {args.min_score}) "
-                f"with {int(s['integrity_failures'])} integrity failures"
-            )
+        ours = [name for name in OURS if name in all_results]
+        if not ours:
+            sys.exit(f"--min-score needs one of {', '.join(OURS)} among the algorithms")
+        for name in ours:
+            s = summarise(all_results[name])
+            if s["integrity_failures"] or s["score"] < args.min_score:
+                sys.exit(
+                    f"{name} scored {s['score']:.2f} (minimum {args.min_score}) "
+                    f"with {int(s['integrity_failures'])} integrity failures"
+                )
 
 
 if __name__ == "__main__":
