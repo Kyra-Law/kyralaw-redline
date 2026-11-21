@@ -12,7 +12,7 @@ Usage::
     python eval/bench.py DATA                          # the built-in algorithms, test split
     python eval/bench.py DATA --split dev              # the 48 pairs meant for tuning
     python eval/bench.py DATA -a kyralaw-redline       # one algorithm (repeatable)
-    python eval/bench.py DATA -a pyredlines            # needs: pip install python-redlines
+    python eval/bench.py DATA -a python-redlines       # needs: pip install python-redlines
     python eval/bench.py DATA --redlines mine=out/     # score your own: out/<pair id>.docx
     python eval/bench.py DATA --json results.json --save-redlines out/
 
@@ -325,23 +325,23 @@ def score_redline(pair: str, redline: bytes, ref: Reference, seconds: float | No
 
 
 @cache
-def _pyredlines_engine() -> Any:
+def _python_redlines_engine() -> Any:
     try:
         engines = importlib.import_module("python_redlines.engines")
     except ImportError:
-        sys.exit("-a pyredlines needs the python-redlines package: pip install python-redlines")
+        sys.exit("-a python-redlines needs the python-redlines package: pip install python-redlines")
     return engines.XmlPowerToolsEngine()
 
 
-def _pyredlines(old: bytes, new: bytes) -> bytes:
+def _python_redlines(old: bytes, new: bytes) -> bytes:
     """Open-XML-PowerTools' WmlComparer through python-redlines, a third-party reference point."""
-    out = _pyredlines_engine().run_redline("kyralaw-redline-bench", old, new)[0]
+    out = _python_redlines_engine().run_redline("kyralaw-redline-bench", old, new)[0]
     if not out:
         raise RuntimeError("python-redlines returned no document")
     return bytes(out)
 
 
-OPTIONAL: dict[str, Algorithm] = {"pyredlines": _pyredlines}
+OPTIONAL: dict[str, Algorithm] = {"python-redlines": _python_redlines}
 
 
 def _from_folder(folder: Path) -> Callable[[str], bytes | None]:

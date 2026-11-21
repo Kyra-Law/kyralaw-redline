@@ -164,12 +164,13 @@ over pairs. Two further checks are reported beside it:
 | Algorithm | Score | Insert F1 | Delete F1 | Integrity failures | Styles kept |
 | --- | ---: | ---: | ---: | ---: | ---: |
 | `kyralaw-redline-in-place` | 98.92 | 0.988 | 0.990 | 0/265 | 83.9% |
+| `kyralaw-redline-auto` | 98.92 | 0.988 | 0.990 | 0/265 | 83.9% |
 | `kyralaw-redline-rebuild` | 98.88 | 0.988 | 0.990 | 0/265 | 8.9% |
-| `difflib-words`: token-level difflib, no alignment or heuristics | 91.45 | 0.894 | 0.935 | 0/265 | 8.9% |
-| `paragraph-baseline`: a line diff | 52.68 | 0.530 | 0.523 | 0/265 | 8.9% |
+| `token-diff`: a token-level difflib, no alignment or heuristics | 91.45 | 0.894 | 0.935 | 0/265 | 8.9% |
+| `line-diff`: a line diff | 52.68 | 0.530 | 0.523 | 0/265 | 8.9% |
 
 The two kyralaw-redline renderers mark the same changes, since they share one diff; the in-place
-one never had to fall back on this corpus.
+one never had to fall back on this corpus, so `kyralaw-redline-auto` is the same.
 
 The weak spot is **dense edits (92.50)**: adjacent edits in one paragraph still sometimes make the
 merge heuristics replace a whole span instead of making the small edits within it.
@@ -217,32 +218,33 @@ kept. Score = 100 x the mean of insert F1, delete F1 and fidelity.
 
 **Results** (test, 685 pairs, one Apple silicon Mac):
 
-| Algorithm | Score | Text F1 | Fidelity | Integrity failures | Median time |
-| --- | ---: | ---: | ---: | ---: | ---: |
-| Word's reference scored as a candidate (a check on the scorer) | 100.00 | 100.00 | 1.000 | 0 | |
-| [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0 (Open XML PowerTools) | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
-| kyralaw-redline, `mode="in-place"` (3 pairs refused, left out) | 94.08 | 91.34 | 0.996 | 0 | 216 ms |
-| **kyralaw-redline, `mode="auto"`** (in place; those 3 rebuilt) | **94.01** | 91.34 | 0.993 | 0 | 220 ms |
-| Kyra Law's platform redline, as it ships today | 93.94 | 91.31 | 0.992 | 3 | 116 ms |
-| kyralaw-redline, `mode="rebuild"` | 78.72 | 92.39 | 0.514 | 0 | 353 ms |
-| Kyra Law's platform text renderer, its fallback | 67.53 | 89.89 | 0.228 | 685 | 140 ms |
-| `difflib-words` | 62.60 | 68.02 | 0.518 | 0 | 1.57 s |
-| `paragraph-baseline` | 49.68 | 48.56 | 0.519 | 0 | 220 ms |
+| Algorithm | What it is | Score | Text F1 | Fidelity | Integrity failures | Median time |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| `word-compare` | Word's own reference, scored as a candidate: a check on the scorer | 100.00 | 100.00 | 1.000 | 0 | |
+| `python-redlines` | [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0, Open XML PowerTools' comparer | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
+| `kyralaw-redline-in-place` | this library, `mode="in-place"`; refuses 3 pairs, left out | 94.08 | 91.34 | 0.996 | 0 | 216 ms |
+| **`kyralaw-redline-auto`** | this library's default: in place, those 3 rebuilt | **94.01** | 91.34 | 0.993 | 0 | 182 ms |
+| `kyralaw-native` | the earlier in-place renderer this one was ported from, falling back to `kyralaw-wordlevel` | 93.94 | 91.31 | 0.992 | 3 | 116 ms |
+| `kyralaw-redline-rebuild` | this library, `mode="rebuild"` | 78.72 | 92.39 | 0.514 | 0 | 353 ms |
+| `kyralaw-wordlevel` | the earlier text renderer `kyralaw-redline-rebuild` replaced | 67.53 | 89.89 | 0.228 | 685 | 140 ms |
+| `token-diff` | a token-level difflib, no alignment or heuristics | 62.60 | 68.02 | 0.518 | 0 | 1.57 s |
+| `line-diff` | a line diff | 49.68 | 48.56 | 0.519 | 0 | 220 ms |
 
-- **The in-place renderer is Kyra Law's platform redline, open-sourced** onto this library's diff.
-  On the 682 pairs both write in place they score 94.08 and 94.02.
-- **Fallbacks differ.** `"auto"` falls back to `"rebuild"`, which passes the accept/reject check.
-  The platform falls back to a text renderer that writes its own markup (bold as `**`, tables as
-  pipe rows) into the redline, so every one of its redlines fails that check, and so do the
-  platform redline's 3 fallbacks.
-- **Rebuild marks the text about a point better than in-place**, though they share one diff. They
-  read the documents differently: rebuild diffs the text `extract_text` gives, in-place the
-  paragraphs of the documents themselves, table cells included. Which reading costs what is worth
-  a closer look.
+- **`kyralaw-redline-in-place` and `kyralaw-native` mark the same changes.** On the 682 pairs both
+  write in place they score 94.08 and 94.02.
+- **Fallbacks differ.** `kyralaw-redline-auto` falls back to `kyralaw-redline-rebuild`, which passes
+  the accept/reject check. `kyralaw-native` falls back to `kyralaw-wordlevel`, which writes its own
+  markup (bold as `**`, tables as pipe rows) into the redline, so every one of its redlines fails
+  that check, and so do `kyralaw-native`'s 3 fallbacks.
+- **`kyralaw-redline-rebuild` marks the text about a point better than `kyralaw-redline-in-place`**,
+  though they share one diff. They read the documents differently: rebuild diffs the text
+  `extract_text` gives, in-place the paragraphs of the documents themselves, table cells included.
+  Which reading costs what is worth a closer look.
 - **Fidelity decides the ranking.** Rebuild writes into a blank document, so tables, headers and
   footers do not survive; in place they all do.
-- **Times** are from producing each redline from the two files; the two platform rows were timed
-  in a separate run that also reads the documents' text. Treat them as relative.
+- **Times** are from producing each redline from the two files; `kyralaw-native` and
+  `kyralaw-wordlevel` were timed in a separate run that also reads the documents' text. Treat them
+  as relative.
 
 ## Development
 

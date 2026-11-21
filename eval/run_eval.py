@@ -48,6 +48,7 @@ import json
 import statistics
 import sys
 import time
+import warnings
 import zipfile
 from collections.abc import Callable
 from dataclasses import asdict, dataclass, field
@@ -63,6 +64,7 @@ from generate import CORPUS_PATH, STYLES, score_tokens
 
 from kyralaw_redline import (
     DiffSegment,
+    InPlaceFallbackWarning,
     extract_paragraphs,
     extract_text,
     read_tracked_changes,
@@ -85,6 +87,14 @@ def _kyralaw_in_place(old_docx: bytes, new_docx: bytes) -> bytes:
     return redline_docx(old_docx, new_docx, date=FIXED_DATE, mode="in-place")
 
 
+def _kyralaw_auto(old_docx: bytes, new_docx: bytes) -> bytes:
+    """In place, rebuilt when in place is not possible: the library's default."""
+    with warnings.catch_warnings():
+        # kyralaw-redline-in-place refuses the same pairs, and that is where they are counted.
+        warnings.simplefilter("ignore", InPlaceFallbackWarning)
+        return redline_docx(old_docx, new_docx, date=FIXED_DATE, mode="auto")
+
+
 def _kyralaw_rebuild(old_docx: bytes, new_docx: bytes) -> bytes:
     """The same diff written into a new, plain document."""
     return redline_docx(old_docx, new_docx, date=FIXED_DATE, mode="rebuild")
@@ -104,7 +114,7 @@ def _opcode_segments(old: list[str], new: list[str], isjunk: Callable[[str], boo
     return out
 
 
-def _paragraph_baseline(old_docx: bytes, new_docx: bytes) -> bytes:
+def _line_diff(old_docx: bytes, new_docx: bytes) -> bytes:
     """What a line diff gives: any changed paragraph is deleted and
     reinserted whole."""
     old = extract_text(old_docx).splitlines(keepends=True)
@@ -112,7 +122,7 @@ def _paragraph_baseline(old_docx: bytes, new_docx: bytes) -> bytes:
     return render_segments_docx(_opcode_segments(old, new, lambda s: not s.strip()), date=FIXED_DATE)
 
 
-def _difflib_words(old_docx: bytes, new_docx: bytes) -> bytes:
+def _token_diff(old_docx: bytes, new_docx: bytes) -> bytes:
     """A plain token-level difflib over the whole document, with none of the
     paragraph alignment or anchoring heuristics. Isolates what those add."""
     old = _tokenize(extract_text(old_docx))
@@ -122,13 +132,14 @@ def _difflib_words(old_docx: bytes, new_docx: bytes) -> bytes:
 
 ALGORITHMS: dict[str, Algorithm] = {
     "kyralaw-redline-in-place": _kyralaw_in_place,
+    "kyralaw-redline-auto": _kyralaw_auto,
     "kyralaw-redline-rebuild": _kyralaw_rebuild,
-    "difflib-words": _difflib_words,
-    "paragraph-baseline": _paragraph_baseline,
+    "token-diff": _token_diff,
+    "line-diff": _line_diff,
 }
 
-# The two renderers the CI floor applies to.
-OURS = ("kyralaw-redline-in-place", "kyralaw-redline-rebuild")
+# The kyralaw-redline algorithms the CI floor applies to.
+OURS = ("kyralaw-redline-in-place", "kyralaw-redline-auto", "kyralaw-redline-rebuild")
 
 
 # Scoring ------------------------------------------------------------------
