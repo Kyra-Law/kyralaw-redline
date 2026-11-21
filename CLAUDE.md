@@ -19,11 +19,18 @@ Guidance for Claude Code working in this repository. This repository is intended
    tables (`_respect_tables`): a pair that crosses table rows is shown as a deletion plus an
    insertion, and paragraphs then left without a partner in corresponding cells are aligned again
    by `align_paragraphs` itself. Every word diff still comes from `diff.py`.
-5. **Never fail silently.** A skipped pair, an integrity failure or a missing input is reported
+5. **Self-contained.** Everything needed to run every algorithm in the evaluations, and to build
+   kyralaw-redline-bench (`bench/`), is in this repository. No code imports, calls or depends on
+   any other Kyra Law codebase, and an algorithm that cannot be run from here is not in the
+   published results.
+6. **Never fail silently.** A skipped pair, an integrity failure or a missing input is reported
    with its magnitude, never folded into a score.
 
 ## The evaluation
 
+- `bench/` builds kyralaw-redline-bench (macOS with Word); `eval/bench.py` scores it. A change to
+  `bench/views.py` or `bench/build.py` must leave every existing pair's row unchanged, or be a new
+  dataset version.
 - Every algorithm the evaluations run is a `RedlineEngine` (`src/kyralaw_redline/engine.py`): a
   lowercase-hyphenated `name` and `redline(old_docx, new_docx) -> bytes`. A new one is a subclass,
   listed in `ENGINES` in `eval/run_eval.py`.

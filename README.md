@@ -188,11 +188,15 @@ over pairs. Two further checks are reported beside it:
 | `kyralaw-redline-in-place` | 98.92 | 0.988 | 0.990 | 0/265 | 83.9% |
 | `kyralaw-redline-auto` | 98.92 | 0.988 | 0.990 | 0/265 | 83.9% |
 | `kyralaw-redline-rebuild` | 98.88 | 0.988 | 0.990 | 0/265 | 8.9% |
+| `kyralaw-native`: the first in-place renderer, frozen (refuses 1 pair, left out) | 99.10 | 0.990 | 0.992 | 0/264 | 83.9% |
 | `token-diff`: a token-level difflib, no alignment or heuristics | 91.45 | 0.894 | 0.935 | 0/265 | 8.9% |
 | `line-diff`: a line diff | 52.68 | 0.530 | 0.523 | 0/265 | 8.9% |
 
 The two kyralaw-redline renderers mark the same changes, since they share one diff; the in-place
-one never had to fall back on this corpus, so `kyralaw-redline-auto` is the same.
+one never had to fall back on this corpus, so `kyralaw-redline-auto` is the same. `kyralaw-native`
+marks slightly better here: its first paragraph alignment has a word-level similarity check the
+current one lacks, which is worth bringing across. It also refuses a table row deletion that the
+current renderer handles.
 
 The weak spot is **dense edits (92.50)**: adjacent edits in one paragraph still sometimes make the
 merge heuristics replace a whole span instead of making the small edits within it.
@@ -247,29 +251,32 @@ kept. Score = 100 x the mean of insert F1, delete F1 and fidelity.
 | `python-redlines` | [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0, Open XML PowerTools' comparer | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
 | **`kyralaw-redline-auto`** | this library's default: in place, rebuilt only if that fails (it never did here) | **94.08** | 91.34 | 0.996 | 0 | 234 ms |
 | `kyralaw-redline-in-place` | this library, `mode="in-place"`: all 685 pairs written in place | 94.08 | 91.34 | 0.996 | 0 | 233 ms |
-| `kyralaw-native` | the earlier in-place renderer this one was ported from, falling back to `kyralaw-wordlevel` | 93.94 | 91.31 | 0.992 | 3 | 116 ms |
+| `kyralaw-native` | the first in-place renderer, frozen as a baseline ([`eval/kyralaw_native.py`](eval/kyralaw_native.py)); refuses 3 pairs, left out | 94.05 | 91.30 | 0.995 | 0 | 122 ms |
 | `kyralaw-redline-rebuild` | this library, `mode="rebuild"` | 78.72 | 92.39 | 0.514 | 0 | 353 ms |
-| `kyralaw-wordlevel` | the earlier text renderer `kyralaw-redline-rebuild` replaced | 67.53 | 89.89 | 0.228 | 685 | 140 ms |
 | `token-diff` | a token-level difflib, no alignment or heuristics | 62.60 | 68.02 | 0.518 | 0 | 1.57 s |
 | `line-diff` | a line diff | 49.68 | 48.56 | 0.519 | 0 | 220 ms |
 
 - **`kyralaw-redline-in-place` and `kyralaw-native` mark the same changes.** On the 682 pairs
   `kyralaw-native` writes in place they score 94.07 and 94.05.
-- **Only `kyralaw-native` falls back.** On 3 pairs, tables where a row is deleted or added and
-  the same value recurs in other rows, it cannot redline in place and falls back to
-  `kyralaw-wordlevel`, which writes its own markup (bold as `**`, tables as pipe rows) into the
-  redline and fails the accept/reject check on every pair. `kyralaw-redline-in-place` keeps every
-  pair inside corresponding table rows and writes those 3 in place too (about 96 each, against
-  67 to 71), so `kyralaw-redline-auto` never needed its fallback here.
+- **Only `kyralaw-native` refuses.** On 3 pairs, tables where a row is deleted or added and the
+  same value recurs in other rows, its own accept/reject check fails and it produces nothing.
+  `kyralaw-redline-in-place` keeps every pair inside corresponding table rows and writes those 3
+  in place too (about 96 each), so `kyralaw-redline-auto` never needed its fallback here.
 - **`kyralaw-redline-rebuild` marks the text about a point better than `kyralaw-redline-in-place`**,
   though they share one diff. They read the documents differently: rebuild diffs the text
   `extract_text` gives, in-place the paragraphs of the documents themselves, table cells included.
   Which reading costs what is worth a closer look.
 - **Fidelity decides the ranking.** Rebuild writes into a blank document, so tables, headers and
   footers do not survive; in place they all do.
-- **Times** are from producing each redline from the two files; `kyralaw-native` and
-  `kyralaw-wordlevel` were timed in a separate run that also reads the documents' text. Treat them
-  as relative.
+- **Times** are from producing each redline from the two files, on one machine. Treat them as
+  relative.
+
+## Building the benchmark
+
+[`bench/`](bench) is how kyralaw-redline-bench was made, start to finish: Word, driven out of
+sight, rejects and accepts each Harvey LAB markup and compares the two versions, every reference
+is checked to read back exactly, and `release.py` writes the dataset as published. It needs macOS
+with Microsoft Word. See [`bench/README.md`](bench/README.md).
 
 ## Development
 

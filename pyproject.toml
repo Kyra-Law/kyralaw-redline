@@ -54,10 +54,15 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 # Separate `elif ... continue` guards read better than one combined condition.
 ignore = ["SIM114"]
 
+[tool.ruff.lint.per-file-ignores]
+# The dataset card is Markdown inside a string: its table rows are long, and wrapping
+# them would change the published card.
+"bench/release.py" = ["E501"]
+
 [tool.mypy]
 python_version = "3.10"
 strict = true
-files = ["src", "eval", "tests"]
+files = ["src", "eval", "tests", "bench"]
 
 [[tool.mypy.overrides]]
 module = ["docx", "docx.*"]
