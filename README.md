@@ -287,6 +287,29 @@ uv run ruff format --check . && uv run ruff check . && uv run mypy
 uv run python eval/generate.py --check
 ```
 
+## Verify in a clean container
+
+The [`Dockerfile`](Dockerfile) builds a Linux machine holding nothing but this repository and its
+locked dependencies, and [`scripts/verify.sh`](scripts/verify.sh) checks everything this README
+claims, with no network:
+
+```bash
+docker build -t kyralaw-redline .
+docker run --rm --network none kyralaw-redline
+docker run --rm --network none -v /path/to/kyralaw-redline-bench:/data:ro kyralaw-redline
+```
+
+- **Isolation:** no other Kyra Law codebase is installed or referred to anywhere in the code.
+- **Everything CI checks:** formatting, lint, types, tests, the corpus, and the synthetic
+  evaluation's floor.
+- **With the dataset mounted:** every engine scores kyralaw-redline-bench's 685 test pairs, in
+  parallel, and each score must equal the one in [`bench/results.md`](bench/results.md), which was
+  produced on macOS. Word's own reference must score 100.00 and nothing may have an integrity
+  failure. On a 10-core machine this takes about 45 minutes, most of it python-redlines;
+  `-e KYRALAW_BENCH_SPLIT=dev` runs the 48 dev pairs in a few minutes, without the comparison.
+
+CI builds the image and runs the first check on every push, on x86-64 Linux.
+
 ## Licence
 
 MIT. See [LICENSE](LICENSE). Copyright (c) 2026 Kyra Law Limited.

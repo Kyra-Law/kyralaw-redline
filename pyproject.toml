@@ -33,6 +33,11 @@ Repository = "https://github.com/Kyra-Law/kyralaw-redline"
 kyralaw-redline = "kyralaw_redline.cli:main"
 
 [dependency-groups]
+# The third-party comparer eval/bench.py can also score (-a python-redlines).
+bench = [
+    "python-redlines==0.3.0",
+    "python-redlines-ooxmlpowertools==0.3.0",
+]
 # The eval renders Word comments, which python-docx supports from 1.2.
 dev = [
     "pytest>=8",

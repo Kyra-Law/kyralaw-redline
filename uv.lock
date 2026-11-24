@@ -3,7 +3,8 @@ revision = 3
 requires-python = ">=3.10"
 resolution-markers = [
     "python_full_version >= '3.15'",
-    "python_full_version < '3.15'",
+    "python_full_version >= '3.11' and python_full_version < '3.15'",
+    "python_full_version < '3.11'",
 ]
 
 [[package]]
@@ -110,6 +111,10 @@ dependencies = [
 ]
 
 [package.dev-dependencies]
+bench = [
+    { name = "python-redlines" },
+    { name = "python-redlines-ooxmlpowertools" },
+]
 dev = [
     { name = "lxml-stubs" },
     { name = "mypy" },
@@ -125,6 +130,10 @@ requires-dist = [
 ]
 
 [package.metadata.requires-dev]
+bench = [
+    { name = "python-redlines", specifier = "==0.3.0" },
+    { name = "python-redlines-ooxmlpowertools", specifier = "==0.3.0" },
+]
 dev = [
     { name = "lxml-stubs", specifier = ">=0.5.1" },
     { name = "mypy", specifier = ">=1.11" },
@@ -521,6 +530,31 @@ wheels = [
 ]
 
 [[package]]
+name = "platformdirs"
+version = "4.12.4"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version < '3.11'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/90/a1/d5f9002a70298c64a789779077d8dd90c10aa1f47fe40c86802df874f2a6/platformdirs-4.12.4.tar.gz", hash = "sha256:63743c02414e755de4e31b8f68125c1407495b86c5a006e203c01ff8b9924250", size = 60010, upload-time = "2026-10-07T23:30:32.426Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/f4/ba/223e00b885e960edd5d4b4d178c88acce019bd5b83786093681b8c393492/platformdirs-4.12.4-py3-none-any.whl", hash = "sha256:78bfb9db2a8471ed7eebe3c3c932da413911042994e699b384fbb4493fa872d7", size = 32596, upload-time = "2026-10-07T23:30:30.825Z" },
+]
+
+[[package]]
+name = "platformdirs"
+version = "4.14.8"
+source = { registry = "https://pypi.org/simple" }
+resolution-markers = [
+    "python_full_version >= '3.15'",
+    "python_full_version >= '3.11' and python_full_version < '3.15'",
+]
+sdist = { url = "https://files.pythonhosted.org/packages/71/18/0b0d99f5bf164f04a7a9534c3dbdbe4d5fd2b382667685ad40c192c4d3d1/platformdirs-4.14.8.tar.gz", hash = "sha256:96893d686e84e9e6f358a9ea41a8de544df66dbf2ba6cda250e7dc73acf85b9b", size = 87203, upload-time = "2026-11-20T08:14:52.63Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/5b/be/373cc7341f53bfd3acba3e5db62433fd960a45fcf73ad64a5f4d27e74910/platformdirs-4.14.8-py3-none-any.whl", hash = "sha256:1e34af590de4d978631b751eb2202f2fee4497537a17c1720b12fcf57b331392", size = 94267, upload-time = "2026-11-20T08:14:51.306Z" },
+]
+
+[[package]]
 name = "pluggy"
 version = "1.6.0"
 source = { registry = "https://pypi.org/simple" }
@@ -567,6 +601,32 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/a9/f7/eddfe33871520adab45aaa1a71f0402a2252050c14c7e3009446c8f4701c/python_docx-1.2.0.tar.gz", hash = "sha256:7bc9d7b7d8a69c9c02ca09216118c86552704edc23bac179283f2e38f86220ce", size = 5723256, upload-time = "2025-06-16T20:46:27.921Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/d0/00/1e03a4989fa5795da308cd774f05b704ace555a70f9bf9d3be057b680bcf/python_docx-1.2.0-py3-none-any.whl", hash = "sha256:3fd478f3250fbbbfd3b94fe1e985955737c145627498896a8a6bf81f4baf66c7", size = 252987, upload-time = "2025-06-16T20:46:22.506Z" },
+]
+
+[[package]]
+name = "python-redlines"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "platformdirs", version = "4.12.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
+    { name = "platformdirs", version = "4.14.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/e4/5c/6fcb4ba556f840603c5e3aff322d211164bbbc4146b944d7a35ca83d2f43/python_redlines-0.3.0.tar.gz", hash = "sha256:10c988de48adcf09289a1e3cc7e536b43bec06c4475221799ddf36d4080205f7", size = 7290, upload-time = "2026-07-10T06:53:26.738Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/53/ca/be0855e688cee86f29e887520419310948d74271bc245aa8a927b3764ab3/python_redlines-0.3.0-py3-none-any.whl", hash = "sha256:399d4842f7c6548f88e72b90e9cdaaaf45702d4d26195cdbc61e09e81dd68619", size = 6206, upload-time = "2026-07-10T06:52:42.811Z" },
+]
+
+[[package]]
+name = "python-redlines-ooxmlpowertools"
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/09/c9/f415fb1bb7dd64bb19fbc2c43164a760b85f81bdf1a79ab6583908f1dfe2/python_redlines_ooxmlpowertools-0.3.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:96b8851d41a7dc8151a0f13a8f2b4b99385ed046be074f844bb172a3fddaea28", size = 32002147, upload-time = "2026-07-10T06:53:07.764Z" },
+    { url = "https://files.pythonhosted.org/packages/ea/d8/e1dd87ceab93889f33e8d1d850b849bbe8740794eb4c544b4c67122d4196/python_redlines_ooxmlpowertools-0.3.0-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:d05cd5d403872d3265eb99fe8cfef8512e822a92fe058635cc70dd29c4a5ca5b", size = 33649491, upload-time = "2026-07-10T06:53:10.958Z" },
+    { url = "https://files.pythonhosted.org/packages/ac/6f/a847c8117a76f3fa3ced8959e8e36ce9f4d2a7fc88573578719e270f2512/python_redlines_ooxmlpowertools-0.3.0-py3-none-manylinux2014_aarch64.whl", hash = "sha256:3669fb50e875d3862340ca9f33c2137752539e662f341995964fb90eb19d2314", size = 32670999, upload-time = "2026-07-10T06:53:14.244Z" },
+    { url = "https://files.pythonhosted.org/packages/aa/9b/1d1866dbae12f0d5161852949c845d467edf04c9ecf67bb541b16f69ac32/python_redlines_ooxmlpowertools-0.3.0-py3-none-manylinux2014_x86_64.whl", hash = "sha256:d6e629aa8996e280d0a9c6a6c8838398840fba87159a19747556d6f759875f0b", size = 34093367, upload-time = "2026-07-10T06:53:17.668Z" },
+    { url = "https://files.pythonhosted.org/packages/ce/62/2272b8c81a3b4464bf87c2b51d94263e32c90a2330569aca9bf0aa60f8b4/python_redlines_ooxmlpowertools-0.3.0-py3-none-win_amd64.whl", hash = "sha256:a88e8612567ea0db5a99fb3f8a2a408d16fe5f52f89c0a13b9e4bd5565e54080", size = 35272901, upload-time = "2026-07-10T06:53:20.796Z" },
+    { url = "https://files.pythonhosted.org/packages/7f/24/c075e0b9057ea29c31ea9f7941b397785426567dbc5117c8bf2ef62258b8/python_redlines_ooxmlpowertools-0.3.0-py3-none-win_arm64.whl", hash = "sha256:953769f8ae3c4b5a623c406cb77f7d9b39bf5fcb6983d19228461c24e86ccc17", size = 34108835, upload-time = "2026-07-10T06:53:24.093Z" },
 ]
 
 [[package]]

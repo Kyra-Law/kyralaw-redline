@@ -48,6 +48,10 @@ Guidance for Claude Code working in this repository. This repository is intended
 
 ## Checks
 
+`scripts/verify.sh` runs everything below, and more, in the container (see the README). A change
+that moves a kyralaw-redline-bench score must update `bench/results.md` in the same change: the
+container compares every score with it.
+
 ```bash
 uv run pytest
 uv run ruff format --check . && uv run ruff check . && uv run mypy
