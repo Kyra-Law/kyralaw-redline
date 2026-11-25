@@ -66,6 +66,21 @@ LAB_REPOSITORY = "https://github.com/harveyai/harvey-labs"
 SCORER_REPOSITORY = "https://github.com/Kyra-Law/kyralaw-redline"
 # The tag on SCORER_REPOSITORY holding the exact code that produced this version.
 CODE_TAG = f"bench-v{VERSION}"
+
+# The card shows kyralaw-redline once, at its default, beside the other algorithms.
+# bench/results.md keeps every variant: the repository's README shows them all, and the
+# container compares each one's score.
+CARD_HIDDEN = frozenset({"kyralaw-redline-in-place", "kyralaw-native", "kyralaw-redline-rebuild"})
+CARD_NOTES = f"""- **Keeping the document matters.** `token-diff` and `line-diff` write into a blank document, so
+  tables, headers and footers do not survive, and their fidelity is about half. `python-redlines`
+  and `kyralaw-redline-auto` write into the new document itself, the way Word does.
+- **Deletions are harder than insertions** for every algorithm, by about 8 points of F1 at the top.
+- **Integrity failures** are redlines whose changes, all accepted or all rejected, do not give back
+  the two documents. None of these algorithms has any.
+- **Times** are for producing each redline from the two files, on one machine. Treat them as
+  relative.
+- kyralaw-redline's other renderers, and a frozen earlier version of it, are scored in
+  [its README]({SCORER_REPOSITORY}/tree/{CODE_TAG}#the-benchmark-kyralaw-redline-bench)."""
 FILES = {"old.docx": "old.docx", "new.docx": "new.docx", "old_to_new.docx": "reference.docx"}
 
 _MIT = """MIT License
@@ -153,6 +168,22 @@ def _refusal_kind(reason: str) -> str:
     if "comparison does not give" in reason:
         return "reference_not_exact"
     return "other"
+
+
+def card_results(results: str) -> str:
+    """The card's results: the intro and table of ``bench/results.md`` without the rows in
+    CARD_HIDDEN, then CARD_NOTES in place of its notes, which compare those rows."""
+    lines = results.strip().splitlines()
+    table = [i for i, line in enumerate(lines) if line.startswith("|")]
+    if not table:
+        raise SystemExit("the results file has no table")
+    rows = {m[1]: i for i in table if (m := re.match(r"\| `([a-z0-9-]+)` \|", lines[i]))}
+    missing = sorted(CARD_HIDDEN - set(rows))
+    if missing:
+        raise SystemExit(f"the results table has no row for {missing}; CARD_HIDDEN is out of date")
+    hidden = {rows[name] for name in CARD_HIDDEN}
+    kept = [lines[i] for i in range(table[0], table[-1] + 1) if i not in hidden]
+    return "\n".join([*lines[: table[0]], *kept, "", CARD_NOTES])
 
 
 def main() -> None:
@@ -250,7 +281,7 @@ def main() -> None:
     facts = {
         "docx_total": docx_total,
         "tracked_files": tracked_files,
-        "results": args.results.read_text().strip() if args.results else None,
+        "results": card_results(args.results.read_text()) if args.results else None,
         "lab_commit": lab_commit,
         "markups": len(manifest),
         "pairs": len(every),
