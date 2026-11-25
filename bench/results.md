@@ -1,13 +1,13 @@
 Scored with [`eval/bench.py`](https://github.com/Kyra-Law/kyralaw-redline/blob/bench-v1.0.0/eval/bench.py) on the
-`test` split (685 pairs), on one Apple silicon Mac, by the same scorer at three commits: `kyralaw-redline`,
-`kyralaw-redline-rebuild` and `kyralaw-native` at [`836fe1b`](https://github.com/Kyra-Law/kyralaw-redline/tree/836fe1b), the two `docxodus` rows at
+`test` split (685 pairs), on one Apple silicon Mac, by the same scorer at four commits: `kyralaw-redline` at
+[`1d3a875`](https://github.com/Kyra-Law/kyralaw-redline/tree/1d3a875), `kyralaw-redline-rebuild` and `kyralaw-native` at [`836fe1b`](https://github.com/Kyra-Law/kyralaw-redline/tree/836fe1b), the two `docxodus` rows at
 [`0f74a70`](https://github.com/Kyra-Law/kyralaw-redline/tree/0f74a70), the rest at `bench-v1.0.0`. Every algorithm here runs from that
 repository.
 
 | Algorithm | What it is | Score | Text F1 | Insert F1 | Delete F1 | Fidelity | Integrity failures | Median time per pair |
 | --- | --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |
 | `word-compare` | Word's own reference, scored as a candidate: a check on the scorer | 100.00 | 100.00 | 1.000 | 1.000 | 1.000 | 0 | |
-| `kyralaw-redline` | [kyralaw-redline](https://github.com/Kyra-Law/kyralaw-redline), writing into the new document: all 685 pairs in place | 97.46 | 96.41 | 0.983 | 0.945 | 0.996 | 0 | 257 ms |
+| `kyralaw-redline` | [kyralaw-redline](https://github.com/Kyra-Law/kyralaw-redline), writing into the new document: all 685 pairs in place | 97.53 | 96.41 | 0.983 | 0.945 | 0.998 | 0 | 227 ms |
 | `docxodus` | [Docxodus](https://github.com/JSv4/Docxodus) 17.0.0 through [docx-scalpel](https://pypi.org/project/docx-scalpel/) 0.14.0, the comparison its `redline` command runs; one process serves every pair | 96.33 | 94.58 | 0.973 | 0.918 | 0.998 | 7 | 165 ms |
 | `docxodus-checked` | `docxodus`, each redline read back and, if it does not give back both documents, compared again with only spaces as word separators (7 pairs) | 96.33 | 94.58 | 0.973 | 0.918 | 0.998 | 0 | 298 ms |
 | `kyralaw-native` | kyralaw-redline's first in-place renderer, its paragraph alignment frozen as a baseline; refuses 3 pairs, left out | 96.18 | 94.50 | 0.970 | 0.920 | 0.995 | 0 | 124 ms |
@@ -26,7 +26,7 @@ repository.
   fidelity decides its score. `kyralaw-redline` and `kyralaw-native` write into the new document
   itself, the way Word does.
 - **`kyralaw-redline` and `kyralaw-native` share the word diff, not the paragraph alignment.** On the
-  682 pairs `kyralaw-native` writes, they score 97.46 and 96.18: `kyralaw-native` keeps its first
+  682 pairs `kyralaw-native` writes, they score 97.53 and 96.18: `kyralaw-native` keeps its first
   alignment, where two blank paragraphs could outweigh pairing an edited clause. On the other 3,
   tables where a row is deleted or added and a value recurs in other rows, `kyralaw-native`'s own
   check fails and it writes nothing; `kyralaw-redline` writes them in place (about 98 each).
