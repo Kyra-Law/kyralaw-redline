@@ -14,6 +14,7 @@ Usage::
     python eval/bench.py -a kyralaw-redline            # one algorithm (repeatable)
     python eval/bench.py -a python-redlines            # needs: pip install python-redlines
     python eval/bench.py -a docxodus                   # needs: pip install docx-scalpel
+    python eval/bench.py -a docxodus-checked           # the same, with its redlines checked
     python eval/bench.py -a word-compare               # Word's reference as a candidate: must give 100
     python eval/bench.py --redlines mine=out/          # score your own: out/<pair id>.docx
     python eval/bench.py --json results.json --save-redlines out/
@@ -68,7 +69,7 @@ import sys
 import time
 import zipfile
 from collections.abc import Iterator
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from functools import cache
 from pathlib import Path
 from typing import Any, Literal
@@ -79,6 +80,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench_data
 from engines import ALGORITHMS
 
+from kyralaw_redline import extract_paragraphs
 from kyralaw_redline.engine import RedlineEngine, check_engine_name
 
 View = Literal["accepted", "original"]
@@ -365,7 +367,8 @@ def score_redline(pair: str, redline: bytes, ref: Reference, seconds: float | No
 # Engines ---------------------------------------------------------------------
 #
 # Every algorithm scored here is a RedlineEngine: two .docx files in, one redline
-# .docx out. Beside those in eval/engines.py: docxodus, python-redlines, word-compare, and redlines
+# .docx out. Beside those in eval/engines.py: docxodus (plain and checked), python-redlines,
+# word-compare, and redlines
 # made elsewhere, read from a folder.
 
 
@@ -413,11 +416,45 @@ class DocxodusEngine(RedlineEngine):
         return scalpel, settings
 
     def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
-        scalpel, settings = self._client()
-        out = scalpel.docx_diff_compare(old_docx, new_docx, settings)
+        return self._compare(old_docx, new_docx, self._client()[1])
+
+    def _compare(self, old_docx: bytes, new_docx: bytes, settings: Any) -> bytes:
+        out = self._client()[0].docx_diff_compare(old_docx, new_docx, settings)
         if not out:
             raise RuntimeError("docx-scalpel returned no document")
         return bytes(out)
+
+
+class DocxodusCheckedEngine(DocxodusEngine):
+    """Docxodus with its redline checked, and compared again once if the check fails.
+
+    Docxodus treats "-" and a few punctuation marks as word separators, so a paragraph of
+    nothing else, such as "---", has no words and matches an empty paragraph. When an
+    empty paragraph becomes "---" with a new paragraph after it, Docxodus can write the
+    "---" as unchanged, and rejecting every change then keeps it. This engine checks that
+    accepting every change gives the new document's paragraphs and rejecting every change
+    the old one's, read by ``kyralaw_redline.extract_paragraphs``; if not, it compares
+    again with the space as the only separator, and says so on stderr. A redline that
+    fails both is refused, so the pair is reported rather than scored.
+    """
+
+    name = "docxodus-checked"
+
+    def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
+        settings = self._client()[1]
+        old, new = extract_paragraphs(old_docx), extract_paragraphs(new_docx)
+        for attempt, attempt_settings in enumerate((settings, replace(settings, word_separators=" "))):
+            out = self._compare(old_docx, new_docx, attempt_settings)
+            if extract_paragraphs(out, view="original") == old and extract_paragraphs(out) == new:
+                return out
+            if attempt == 0:
+                print(
+                    "docxodus-checked: a redline does not give back both documents; comparing again with only "
+                    "spaces as word separators",
+                    file=sys.stderr,
+                    flush=True,
+                )
+        raise RuntimeError("Docxodus's redline does not give back both documents, even with only spaces as separators")
 
 
 class MissingRedline(LookupError):
@@ -478,7 +515,7 @@ class WordCompareEngine(PrebuiltRedlinesEngine):
         return self.folder / pair / "reference.docx"
 
 
-OPTIONAL = ("docxodus", "python-redlines", "word-compare")
+OPTIONAL = ("docxodus", "docxodus-checked", "python-redlines", "word-compare")
 
 
 def run(
@@ -602,6 +639,8 @@ def main() -> None:
     for name in names:
         if name == "docxodus":
             engines.append(DocxodusEngine())
+        elif name == "docxodus-checked":
+            engines.append(DocxodusCheckedEngine())
         elif name == "python-redlines":
             engines.append(PythonRedlinesEngine())
         elif name == "word-compare":

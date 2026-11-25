@@ -123,6 +123,7 @@ uv run python eval/bench.py --split dev
 uv run python eval/bench.py --redlines mine=out/     # your redlines: out/<id>.docx
 uv run python eval/bench.py -a word-compare          # check the scorer: 100.00
 uv run python eval/bench.py -a docxodus -a python-redlines   # the third-party comparers
+uv run python eval/bench.py -a docxodus-checked     # Docxodus, its redlines checked (below)
 ```
 
 The first run downloads the dataset from Hugging Face, at the revision

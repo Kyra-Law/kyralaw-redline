@@ -60,7 +60,7 @@ else
 fi
 
 split="${KYRALAW_BENCH_SPLIT:-test}"
-engines=(word-compare python-redlines docxodus $(python -c "import sys; sys.path.insert(0, 'eval'); import engines; print(' '.join(engines.ALGORITHMS))"))
+engines=(word-compare python-redlines docxodus docxodus-checked $(python -c "import sys; sys.path.insert(0, 'eval'); import engines; print(' '.join(engines.ALGORITHMS))"))
 step "kyralaw-redline-bench, $split split: ${#engines[@]} engines, in parallel"
 out="$(mktemp -d)"
 pids=()
