@@ -11,11 +11,10 @@ the changes from the first to the second marked as tracked changes (``w:ins`` an
 
 To add an algorithm, subclass :class:`RedlineEngine`, give it a ``name`` (lowercase
 words joined by hyphens, checked when the class is defined) and implement
-:meth:`RedlineEngine.redline`. The evaluations (``eval/run_eval.py`` and
-``eval/bench.py``) run engines and nothing else, so an engine is all it takes to be
-scored. Call an engine rather than its ``redline`` method: the call checks that what
-came back is a .docx, so a broken engine fails loudly instead of being scored as an
-empty redline.
+:meth:`RedlineEngine.redline`. The benchmark scorer (``eval/bench.py``) runs
+engines and nothing else, so an engine is all it takes to be scored. Call an engine
+rather than its ``redline`` method: the call checks that what came back is a .docx,
+so a broken engine fails loudly instead of being scored as an empty redline.
 """
 
 from __future__ import annotations

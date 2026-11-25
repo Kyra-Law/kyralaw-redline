@@ -38,7 +38,7 @@ bench = [
     "python-redlines==0.3.0",
     "python-redlines-ooxmlpowertools==0.3.0",
 ]
-# The eval renders Word comments, which python-docx supports from 1.2.
+# The tests write Word comments, which python-docx supports from 1.2.
 dev = [
     "pytest>=8",
     "ruff>=0.6",

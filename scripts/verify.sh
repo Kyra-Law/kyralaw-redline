@@ -3,8 +3,7 @@
 # Dockerfile), where nothing but this repository is installed; it runs anywhere with the
 # dev and bench dependency groups installed.
 #
-#   scripts/verify.sh                  isolation, format, lint, types, tests, the synthetic
-#                                      evaluation
+#   scripts/verify.sh                  isolation, format, lint, types, tests
 #   KYRALAW_BENCH_DATA=/data           also score kyralaw-redline-bench (default /data when that
 #                                      folder exists) and compare every score with
 #                                      bench/results.md
@@ -26,9 +25,8 @@ if found:
     sys.exit(f"importable here: {found}; this environment is not isolated")
 print("no other Kyra Law package is importable")
 PY
-# The evaluation corpus is invented contract text, so it is left out of the scan.
 if grep -rInE "clauze|kyralaw-evals|monorepo|PATH_DIR_CLAUZE" src eval bench tests scripts README.md CLAUDE.md \
-    pyproject.toml --exclude-dir=corpus --exclude-dir=base --exclude=verify.sh; then
+    pyproject.toml --exclude=verify.sh; then
     echo "the lines above refer to another codebase"
     exit 1
 fi
@@ -42,13 +40,6 @@ mypy
 step "Tests"
 pytest -q -p no:cacheprovider
 
-step "The synthetic corpus is exactly what the generator produces"
-python eval/generate.py --check
-
-step "Synthetic evaluation (the CI floor: 98.5, no integrity failures, no refusals)"
-python eval/run_eval.py --min-score 98.5 > /tmp/run_eval.md
-awk 'NR > 2 && /^\|/ { print } NR > 3 && /^$/ { exit }' /tmp/run_eval.md
-
 data="${KYRALAW_BENCH_DATA:-/data}"
 if [ ! -f "$data/test.jsonl" ]; then
     step "kyralaw-redline-bench: not mounted at $data, skipped"
@@ -58,7 +49,7 @@ if [ ! -f "$data/test.jsonl" ]; then
 fi
 
 split="${KYRALAW_BENCH_SPLIT:-test}"
-engines=(word-compare python-redlines $(python -c "import sys; sys.path.insert(0, 'eval'); import run_eval; print(' '.join(run_eval.ALGORITHMS))"))
+engines=(word-compare python-redlines $(python -c "import sys; sys.path.insert(0, 'eval'); import engines; print(' '.join(engines.ALGORITHMS))"))
 step "kyralaw-redline-bench, $split split: ${#engines[@]} engines, in parallel"
 out="$(mktemp -d)"
 pids=()

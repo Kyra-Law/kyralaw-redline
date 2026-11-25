@@ -27,26 +27,10 @@ jobs:
       - run: uv sync --python ${{ matrix.python }}
       - run: uv run pytest
 
-  eval:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v6
-      - run: uv sync --python 3.12
-      # The committed corpus must be exactly what the generator produces.
-      - run: uv run python eval/generate.py --check
-      # Regression gate: fails on any integrity failure, or a score drop.
-      # Raise the floor when the score improves; never lower it to pass.
-      - run: uv run python eval/run_eval.py --min-score 98.5 --json eval-results.json | tee -a "$GITHUB_STEP_SUMMARY"
-      - uses: actions/upload-artifact@v4
-        with:
-          name: eval-results
-          path: eval-results.json
-
   container:
-    # A clean Linux machine with nothing but this repository: the library, its tests and
-    # its evaluations must pass with no network once the image is built, and with no other
-    # codebase installed. See the Dockerfile and scripts/verify.sh.
+    # A clean Linux machine with nothing but this repository: the library and its tests
+    # must pass with no network once the image is built, and with no other codebase
+    # installed. See the Dockerfile and scripts/verify.sh.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

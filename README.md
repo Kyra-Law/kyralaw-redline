@@ -167,8 +167,7 @@ rewarded nor penalised.
   relative.
 
 To score your own algorithm, subclass `RedlineEngine` (above) and add an instance to `ENGINES` in
-[`eval/run_eval.py`](eval/run_eval.py), which `eval/bench.py` reads, or write its redlines to a
-folder and pass `--redlines`.
+[`eval/engines.py`](eval/engines.py), or write its redlines to a folder and pass `--redlines`.
 
 ## Building the benchmark
 
@@ -183,7 +182,6 @@ with Microsoft Word. See [`bench/README.md`](bench/README.md).
 uv sync
 uv run pytest
 uv run ruff format --check . && uv run ruff check . && uv run mypy
-uv run python eval/generate.py --check
 ```
 
 ## Verify in a clean container

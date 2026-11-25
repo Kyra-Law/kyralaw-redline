@@ -79,10 +79,10 @@ def test_the_library_engines_are_redline_docx_in_each_mode(engine: RedlineEngine
     assert engine.name == f"kyralaw-redline-{mode}"
 
 
-def test_every_evaluated_algorithm_is_an_engine_with_its_own_name() -> None:
+def test_every_benchmarked_algorithm_is_an_engine_with_its_own_name() -> None:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "eval"))
-    import run_eval
+    import engines
 
-    assert all(isinstance(engine, RedlineEngine) for engine in run_eval.ENGINES)
-    assert list(run_eval.ALGORITHMS) == [engine.name for engine in run_eval.ENGINES]
-    assert len(set(run_eval.ALGORITHMS)) == len(run_eval.ENGINES)
+    assert all(isinstance(engine, RedlineEngine) for engine in engines.ENGINES)
+    assert list(engines.ALGORITHMS) == [engine.name for engine in engines.ENGINES]
+    assert len(set(engines.ALGORITHMS)) == len(engines.ENGINES)

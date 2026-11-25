@@ -11,7 +11,7 @@ Usage::
 
     python eval/bench.py DATA                          # the built-in algorithms, test split
     python eval/bench.py DATA --split dev              # the 48 pairs meant for tuning
-    python eval/bench.py DATA -a kyralaw-redline       # one algorithm (repeatable)
+    python eval/bench.py DATA -a kyralaw-redline-auto  # one algorithm (repeatable)
     python eval/bench.py DATA -a python-redlines       # needs: pip install python-redlines
     python eval/bench.py DATA -a word-compare          # Word's reference as a candidate: must give 100
     python eval/bench.py DATA --redlines mine=out/     # score your own: out/<pair id>.docx
@@ -22,11 +22,10 @@ Usage::
 **What is compared.** The text each redline marks inserted and deleted, read from its
 ``word/document.xml`` body (headers, footers and notes are not scored), against the
 same read of Word's reference: as bags of tokens, giving precision, recall and F1 for
-insertions and for deletions (``prf`` and ``score_tokens``, shared with
-``run_eval.py``). Moved text counts as deleted where it was (``w:moveFrom``) and
-inserted where it went (``w:moveTo``), in the reference and the candidate alike, so
-detecting moves is neither rewarded nor penalised. Word marks moves in about one pair
-in seven.
+insertions and for deletions (``prf`` and ``score_tokens``). Moved text counts as
+deleted where it was (``w:moveFrom``) and inserted where it went (``w:moveTo``), in
+the reference and the candidate alike, so detecting moves is neither rewarded nor
+penalised. Word marks moves in about one pair in seven.
 
 **Fidelity**, 0 to 1, the mean of four checks that the redline is still a usable
 Word document:
@@ -72,8 +71,7 @@ from xml.etree import ElementTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from generate import SCORE_TOKEN_RE, score_tokens
-from run_eval import ALGORITHMS, prf
+from engines import ALGORITHMS
 
 from kyralaw_redline.engine import RedlineEngine, check_engine_name
 
@@ -86,6 +84,40 @@ _NOT_TEXT = frozenset({f"{_W}pPr", f"{_W}rPr", f"{_W}instrText", f"{_W}delInstrT
 _MARKUP_RE = re.compile(r"\*\*|\{\{|\}\}")
 _STORY_RE = re.compile(r"word/(header|footer)\d*\.xml")
 CHECKS = ("markup_free", "tables", "styles", "headers")
+
+
+# Scoring tokens --------------------------------------------------------------
+#
+# Lowercase words and single punctuation characters, compared as bags: indifferent
+# to *where* an ambiguous edit is placed (deleting one of two adjacent "the"s is the
+# same edit either way), while a redline that deletes and reinserts an unchanged
+# word still loses precision on both sides.
+
+SCORE_TOKEN_RE = re.compile(r"\w+|[^\w\s]", re.UNICODE)
+
+
+def score_tokens(texts: list[str]) -> collections.Counter[str]:
+    return collections.Counter(t.lower() for text in texts for t in SCORE_TOKEN_RE.findall(text))
+
+
+@dataclass
+class PRF:
+    precision: float
+    recall: float
+    f1: float
+
+
+def prf(predicted: collections.Counter[str], expected: collections.Counter[str]) -> PRF:
+    """Bag-of-tokens precision, recall and F1. Empty against empty is a
+    perfect score; anything against empty, or empty against anything, is an
+    F1 of zero."""
+    if not predicted and not expected:
+        return PRF(1.0, 1.0, 1.0)
+    hit = sum((predicted & expected).values())
+    p = hit / sum(predicted.values()) if predicted else 1.0
+    r = hit / sum(expected.values()) if expected else 1.0
+    f1 = 2 * p * r / (p + r) if p + r else 0.0
+    return PRF(p, r, f1)
 
 
 # Reading a .docx -----------------------------------------------------------
@@ -327,7 +359,7 @@ def score_redline(pair: str, redline: bytes, ref: Reference, seconds: float | No
 # Engines ---------------------------------------------------------------------
 #
 # Every algorithm scored here is a RedlineEngine: two .docx files in, one redline
-# .docx out. Beside run_eval's engines: python-redlines, word-compare, and redlines
+# .docx out. Beside those in eval/engines.py: python-redlines, word-compare, and redlines
 # made elsewhere, read from a folder.
 
 

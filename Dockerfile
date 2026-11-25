@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
 #
 # A clean Linux machine holding nothing but this repository and its locked dependencies.
-# Running it checks that kyralaw-redline, its evaluations and its benchmark scorer work on
-# a platform other than the one they were written on, depend on no other codebase, and
-# need no network once built:
+# Running it checks that kyralaw-redline and its benchmark scorer work on a platform other
+# than the one they were written on, depend on no other codebase, and need no network once
+# built:
 #
 #   docker build -t kyralaw-redline .
 #   docker run --rm --network none kyralaw-redline
