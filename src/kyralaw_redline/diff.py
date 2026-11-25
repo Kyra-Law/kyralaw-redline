@@ -717,7 +717,49 @@ def _align_blocks(old_blocks: list[str], new_blocks: list[str]) -> list[tuple[in
             j += 1
     pairs.extend((k, None) for k in range(i, n))
     pairs.extend((None, k) for k in range(j, m))
-    return pairs
+    return _fill_blank_runs(pairs, old_blocks, new_blocks)
+
+
+def _fill_blank_runs(
+    pairs: list[tuple[int | None, int | None]], old_blocks: list[str], new_blocks: list[str]
+) -> list[tuple[int | None, int | None]]:
+    """Where a gap holds an old blank block and new text, pair the last of each.
+
+    A new version often writes text where the old one had empty paragraphs: three blank
+    paragraphs above a title became a cover note of three paragraphs. Deleting every blank
+    and inserting every new paragraph wrote six paragraphs where Word's reference has five:
+    Word reuses an emptied paragraph for the last of the new text. Pairing every blank with
+    new text overshot, to three. Pairing the last blank of a gap with its last new block,
+    as an edit of it, gets five, and leaves the rest of the gap as it was, ahead of it.
+
+    A blank and a block with text never pair otherwise (:func:`_pair_score` scores them
+    -1.0), so this only reaches blocks the alignment left unpaired, and moves no text.
+    """
+    out: list[tuple[int | None, int | None]] = []
+    gap: list[tuple[int | None, int | None]] = []
+
+    def close() -> None:
+        olds = [i for i, j in gap if j is None and i is not None and not old_blocks[i].strip()]
+        news = [j for i, j in gap if i is None and j is not None and new_blocks[j].strip()]
+        if olds and news:
+            bi, nj = olds[-1], news[-1]
+            # Keep both sides in order: what comes before the pair on its side stays before it.
+            rest = [e for e in gap if e not in ((bi, None), (None, nj))]
+            out.extend(e for e in rest if (e[0] is not None and e[0] < bi) or (e[1] is not None and e[1] < nj))
+            out.append((bi, nj))
+            out.extend(e for e in rest if (e[0] is not None and e[0] > bi) or (e[1] is not None and e[1] > nj))
+        else:
+            out.extend(gap)
+        gap.clear()
+
+    for entry in pairs:
+        if entry[0] is not None and entry[1] is not None:
+            close()
+            out.append(entry)
+        else:
+            gap.append(entry)
+    close()
+    return out
 
 
 def diff_blocks(old_blocks: list[str], new_blocks: list[str]) -> list[list[DiffSegment]]:

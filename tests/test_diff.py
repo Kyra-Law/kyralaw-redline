@@ -280,6 +280,18 @@ def test_a_short_match_inside_a_long_change_is_not_kept() -> None:
     assert [s.kind for s in segments] == ["equal", "delete", "insert", "equal"]
 
 
+def test_new_text_written_where_blank_paragraphs_were_reuses_the_last_blank() -> None:
+    """Fails if _align_blocks skips _fill_blank_runs."""
+    old = ["Intro.", "", "", "", "The body of the agreement follows."]
+    new = ["Intro.", "Alpha note.", "Beta note.", "Gamma note.", "The body of the agreement follows."]
+    steps = align_paragraphs(old, new)
+    assert [(s.old_index, s.new_index) for s in steps if s.old_index is not None and s.new_index is not None] == [
+        (0, 0),
+        (3, 3),
+        (4, 4),
+    ]
+
+
 def test_short_trim_at_a_genuine_boundary_is_not_rejected() -> None:
     """A trim ending in a lone punctuation character is only suspect when it
     swallows the entire old side. "2023." -> "2026." keeps "." as equal."""
