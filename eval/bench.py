@@ -59,6 +59,8 @@ from __future__ import annotations
 
 import argparse
 import collections
+import concurrent.futures
+import functools
 import hashlib
 import importlib
 import io
@@ -531,30 +533,50 @@ def run(
     engine: RedlineEngine,
     save_to: Path | None,
     refs: dict[str, Reference],
+    jobs: int = 1,
 ) -> list[PairResult]:
-    results: list[PairResult] = []
-    for row in rows:
-        pair = row["id"]
-        folder = data / "pairs" / pair
+    """Score ``engine`` on every pair in ``rows``, in order.
+
+    With ``jobs`` above 1 the pairs are spread over that many processes, each reading its
+    own references, which makes a full test run several times faster; the times each pair
+    reports are then taken under that load and are not comparable with a serial run.
+    """
+    if jobs > 1:
+        with concurrent.futures.ProcessPoolExecutor(max_workers=jobs) as pool:
+            return list(pool.map(functools.partial(_run_pair, data, engine=engine, save_to=save_to), rows, chunksize=4))
+    return [_run_pair(data, row, engine=engine, save_to=save_to, refs=refs) for row in rows]
+
+
+def _run_pair(
+    data: Path,
+    row: dict[str, Any],
+    *,
+    engine: RedlineEngine,
+    save_to: Path | None,
+    refs: dict[str, Reference] | None = None,
+) -> PairResult:
+    pair = row["id"]
+    folder = data / "pairs" / pair
+    if refs is None:
+        reference = read_reference(folder)
+    else:
         if pair not in refs:
             refs[pair] = read_reference(folder)
-        try:
-            old, new = (folder / "old.docx").read_bytes(), (folder / "new.docx").read_bytes()
-            started = time.perf_counter()
-            redline = engine(old, new)
-            seconds = time.perf_counter() - started if engine.measures_time else None
-            result = score_redline(pair, redline, refs[pair], seconds)
-        except MissingRedline as exc:
-            results.append(PairResult(pair=pair, scored=False, error=str(exc)))
-            continue
-        except Exception as exc:  # one pair's failure is reported, not fatal
-            results.append(PairResult(pair=pair, scored=False, error=f"{type(exc).__name__}: {exc}"[:300]))
-            continue
-        if save_to is not None and engine.measures_time:
-            save_to.mkdir(parents=True, exist_ok=True)
-            (save_to / f"{pair}.docx").write_bytes(redline)
-        results.append(result)
-    return results
+        reference = refs[pair]
+    try:
+        old, new = (folder / "old.docx").read_bytes(), (folder / "new.docx").read_bytes()
+        started = time.perf_counter()
+        redline = engine(old, new)
+        seconds = time.perf_counter() - started if engine.measures_time else None
+        result = score_redline(pair, redline, reference, seconds)
+    except MissingRedline as exc:
+        return PairResult(pair=pair, scored=False, error=str(exc))
+    except Exception as exc:  # one pair's failure is reported, not fatal
+        return PairResult(pair=pair, scored=False, error=f"{type(exc).__name__}: {exc}"[:300])
+    if save_to is not None and engine.measures_time:
+        save_to.mkdir(parents=True, exist_ok=True)
+        (save_to / f"{pair}.docx").write_bytes(redline)
+    return result
 
 
 # Reporting -------------------------------------------------------------------
@@ -628,6 +650,9 @@ def main() -> None:
         "--redlines", action="append", default=[], metavar="NAME=DIR", help="score DIR/<pair id>.docx as NAME"
     )
     parser.add_argument("--limit", type=int, help="score only the first N pairs, for a quick look")
+    parser.add_argument(
+        "--jobs", type=int, default=1, help="score N pairs at once (times are then not comparable with a serial run)"
+    )
     parser.add_argument("--json", type=Path, help="write every pair's scores here")
     parser.add_argument("--save-redlines", type=Path, help="keep the redlines the algorithms wrote, per algorithm")
     args = parser.parse_args()
@@ -666,11 +691,13 @@ def main() -> None:
     all_results: dict[str, list[PairResult]] = {}
     for engine in engines:
         save_to = args.save_redlines / engine.name if args.save_redlines else None
-        all_results[engine.name] = run(data, rows, engine, save_to, refs)
+        all_results[engine.name] = run(data, rows, engine, save_to, refs, args.jobs)
         print(f"{engine.name}: done", file=sys.stderr, flush=True)
 
     summaries = {name: summarise(results) for name, results in all_results.items()}
     print(report(summaries, args.split, len(rows)))
+    if args.jobs > 1:
+        print(f"\nTimes were taken with --jobs {args.jobs}, under that load: compare them only with each other.")
     if args.json:
         args.json.write_text(
             json.dumps(
