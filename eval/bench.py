@@ -425,6 +425,11 @@ class DocxodusEngine(RedlineEngine):
         return bytes(out)
 
 
+def _paragraph_words(docx: bytes, view: View) -> list[str]:
+    """Each paragraph of ``docx`` in ``view``, its runs of whitespace as one space, trimmed."""
+    return [" ".join(p.split()) for p in extract_paragraphs(docx, view=view)]
+
+
 class DocxodusCheckedEngine(DocxodusEngine):
     """Docxodus with its redline checked, and compared again once if the check fails.
 
@@ -433,19 +438,21 @@ class DocxodusCheckedEngine(DocxodusEngine):
     empty paragraph becomes "---" with a new paragraph after it, Docxodus can write the
     "---" as unchanged, and rejecting every change then keeps it. This engine checks that
     accepting every change gives the new document's paragraphs and rejecting every change
-    the old one's, read by ``kyralaw_redline.extract_paragraphs``; if not, it compares
-    again with the space as the only separator, and says so on stderr. A redline that
-    fails both is refused, so the pair is reported rather than scored.
+    the old one's, read by ``kyralaw_redline.extract_paragraphs`` with runs of whitespace
+    treated as one space (as the scorer ignores whitespace, an empty paragraph and one of
+    spaces are the same); if not, it compares again with the space as the only separator,
+    and says so on stderr. A redline that fails both is refused, so the pair is reported
+    rather than scored.
     """
 
     name = "docxodus-checked"
 
     def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
         settings = self._client()[1]
-        old, new = extract_paragraphs(old_docx), extract_paragraphs(new_docx)
+        old, new = _paragraph_words(old_docx, "accepted"), _paragraph_words(new_docx, "accepted")
         for attempt, attempt_settings in enumerate((settings, replace(settings, word_separators=" "))):
             out = self._compare(old_docx, new_docx, attempt_settings)
-            if extract_paragraphs(out, view="original") == old and extract_paragraphs(out) == new:
+            if _paragraph_words(out, "original") == old and _paragraph_words(out, "accepted") == new:
                 return out
             if attempt == 0:
                 print(
