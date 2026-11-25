@@ -7,6 +7,9 @@ Guidance for Claude Code working in this repository. This repository is intended
 1. **No client or confidential material, ever.** No document text, party names, matter
    references or figures from real agreements, in code, comments, docstrings, tests, fixtures
    or commit messages, and no mention of private document sets or what was measured on them.
+   The one deliberate exception is the dataset card's note (`bench/release.py`, "What it does
+   not test") that an internal set of real contracts ranked the algorithms in the same order:
+   keep it to a ranking and a range, with no counts, names or document detail.
    When a real document exposes a bug, reproduce it with invented text, and check that the new
    test fails with the fix removed.
 2. **Do not push without an explicit instruction.** Committing locally is fine.

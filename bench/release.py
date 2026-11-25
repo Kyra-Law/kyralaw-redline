@@ -472,8 +472,11 @@ lawyer would recognise.
 - **Documents:** mostly {areas}.
 
 What it does not test: comments, and negotiations by real parties. The edits are synthetic, written
-under lawyer review rather than negotiated, so a score here says nothing direct about real
-agreements.
+under lawyer review rather than negotiated. As a check, five algorithms were scored on an earlier,
+smaller build of this benchmark and on an internal set of real negotiated contracts, which cannot be
+published. They ranked in the same order on both, and each algorithm's two scores were within four
+points of each other. That suggests a score here carries over to real agreements; it does not prove
+it.
 
 ## Scoring
 
