@@ -23,9 +23,8 @@ so the segment list reconstructs both sides exactly and can be rendered as
 ``SequenceMatcher`` does not compute a minimal diff, and legal prose repeats
 short words and phrases ("the", "thirty (30) days") often enough that it
 regularly anchors a match to the wrong occurrence. Most of the code below is
-a small number of bounded heuristics that correct for that. Each one was
-introduced for a failure seen on a real agreement, and each docstring records
-the failure with invented text of the same shape.
+a small number of bounded heuristics that correct for that. Each one corrects
+a specific failure, and each docstring records that failure with invented text.
 """
 
 from __future__ import annotations
@@ -100,7 +99,7 @@ _Opcode = tuple[str, int, int, int, int]
 # sandwiched equal is a hard boundary between separate runs.
 #
 # This has to be a bounded cap, neither "any length" nor "1 token"; both were
-# tried and both broke a real document:
+# tried and both failed:
 #   - Uncapped: a long, genuinely unchanged clause (13 tokens) got swept into
 #     the same run as the two independent edits either side of it, so the
 #     run's naive-vs-merged comparison was between two bad options instead of
@@ -356,11 +355,11 @@ def _line_opcodes(old_lines: list[str], new_lines: list[str]) -> list[_Opcode]:
     ``SequenceMatcher`` finds the longest matching run first and recurses either
     side of it, so a short line that recurs ("Signed by:", "Schedule", a
     repeated defined-term heading) can become the anchor that splits a document
-    in the wrong place. Seen on a heavily negotiated agreement (2026-11-19):
-    two one-line matches between copies of a repeated line paired old line 76
-    with new line 344, so 300 lines of edited clauses came out as one
-    wholesale deletion followed by 300 lines of wholesale insertion, and the
-    word-level pass never saw a single pair to compare (score 0.23).
+    in the wrong place. In a long, heavily edited document, two one-line
+    matches between copies of a repeated line can pair a line near the start of
+    one version with one far down the other, so hundreds of lines of edited
+    clauses come out as one wholesale deletion followed by one wholesale
+    insertion, and the word-level pass never sees a single pair to compare.
 
     This is the anchoring idea of patience diff: take the lines that are
     unique in both ``old_lines`` and ``new_lines``, keep the longest chain of
@@ -473,11 +472,10 @@ def _unique_anchors(a: list[str], b: list[str], alo: int, ahi: int, blo: int, bh
 # of the new one inserted, plus spurious "equal" runs wherever the two happen
 # to share common words.
 #
-# Chosen from a sweep over a private corpus of 32 real document pairs, scored
-# against Word's Compare output. The score was flat within 0.15 of a point
-# from 0.05 to 0.35 and fell sharply above that (86 at 0.7), so the gain comes
-# from aligning at all rather than from this exact number; 0.3 is the round
-# middle of the flat band.
+# Chosen from a sweep scored against Word's Compare output: the score was flat
+# from 0.05 to 0.35 and fell sharply above that, so the gain comes from
+# aligning at all rather than from this exact number; 0.3 is the round middle
+# of the flat band.
 _ALIGN_MIN_RATIO = 0.3
 
 # Guard on the O(n*m) alignment below. A replace opcode covering a wholesale

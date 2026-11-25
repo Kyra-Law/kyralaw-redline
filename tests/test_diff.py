@@ -1,8 +1,8 @@
 """Tests for kyralaw_redline.diff.
 
 The regression tests each pin one heuristic in diff.py. Their text is
-invented, but shaped like the real agreement that exposed the failure, and
-each was checked to fail with its heuristic disabled (see the note on each).
+invented, and each was checked to fail with its heuristic disabled (see the
+note on each).
 """
 
 from __future__ import annotations
@@ -241,8 +241,8 @@ def test_whitespace_tokens_do_not_spuriously_match_across_unrelated_text() -> No
 
 
 # A short line that recurs, such as a signature label, must never anchor the
-# line-level pass across the document. Shape of the agreement that exposed it
-# (2026-11-19): the recurring line sits early in the old version and late in
+# line-level pass across the document. The shape that breaks it: the
+# recurring line sits early in the old version and late in
 # both, and every other matching line is unique and on its own, so the longest
 # matches are all single lines and SequenceMatcher picks the earliest, the
 # recurring one, pairing it with the late copy. Everything between then came
