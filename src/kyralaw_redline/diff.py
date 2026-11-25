@@ -499,6 +499,28 @@ def _block_similarity(old_block: str, new_block: str) -> float:
     return sm.ratio()
 
 
+# What pairing two blank blocks adds to an alignment's total: enough to pair them
+# where nothing else wants either, too little ever to outweigh pairing real text.
+_BLANK_PAIR_SCORE = 1e-6
+
+
+def _pair_score(old_block: str, new_block: str) -> float:
+    """What pairing these two blocks adds to an alignment, or -1.0 if they may not pair.
+
+    Two blank blocks are interchangeable, so they pair for almost nothing. Scored as
+    identical (1.0), they outweighed real text: an edited clause that moved past a blank
+    paragraph, old [clause, blank] against new [blank, edited clause], could pair either
+    the two clauses (0.52) or the two blanks (1.0) but not both, since pairs keep their
+    order. The blanks won, and the clause came out deleted whole and inserted whole where
+    Word marks the edits inside it. Docxodus treats blank paragraphs as fungible for the
+    same reason.
+    """
+    if not old_block.strip() and not new_block.strip():
+        return _BLANK_PAIR_SCORE
+    ratio = _block_similarity(old_block, new_block)
+    return ratio if ratio >= _ALIGN_MIN_RATIO else -1.0
+
+
 def _align_blocks(old_blocks: list[str], new_blocks: list[str]) -> list[tuple[int | None, int | None]]:
     """Pair blocks by similarity, in order, allowing gaps on either side.
 
@@ -530,15 +552,15 @@ def _align_blocks(old_blocks: list[str], new_blocks: list[str]) -> list[tuple[in
     score = [[0.0] * (m + 1) for _ in range(n + 1)]
     for i in range(n - 1, -1, -1):
         for j in range(m - 1, -1, -1):
-            ratio = _block_similarity(old_blocks[i], new_blocks[j])
-            match = (ratio + score[i + 1][j + 1]) if ratio >= _ALIGN_MIN_RATIO else -1.0
+            pair = _pair_score(old_blocks[i], new_blocks[j])
+            match = (pair + score[i + 1][j + 1]) if pair >= 0 else -1.0
             score[i][j] = max(match, score[i + 1][j], score[i][j + 1])
 
     pairs: list[tuple[int | None, int | None]] = []
     i = j = 0
     while i < n and j < m:
-        ratio = _block_similarity(old_blocks[i], new_blocks[j])
-        match = (ratio + score[i + 1][j + 1]) if ratio >= _ALIGN_MIN_RATIO else -1.0
+        pair = _pair_score(old_blocks[i], new_blocks[j])
+        match = (pair + score[i + 1][j + 1]) if pair >= 0 else -1.0
         if match >= score[i + 1][j] and match >= score[i][j + 1]:
             pairs.append((i, j))
             i, j = i + 1, j + 1

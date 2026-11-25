@@ -10,6 +10,7 @@ from __future__ import annotations
 from kyralaw_redline.diff import (
     DiffSegment,
     added_text,
+    align_paragraphs,
     compute_redline_segments,
     diff_paragraph,
     removed_text,
@@ -186,6 +187,18 @@ def test_wrongly_anchored_sentence_final_period_still_gets_deleted() -> None:
     )
     assert removed_text(segments) == ".\n"
     assert added_text(segments).startswith("; provided, however,")
+
+
+def test_an_edited_paragraph_pairs_across_a_blank_one() -> None:
+    """Old [clause, blank], new [blank, edited clause]: pairs keep their order, so the
+    clauses and the blanks cannot both pair. The clauses must, or the edited clause is
+    deleted whole and inserted whole. Fails if two blanks score as much as text."""
+    old = ["The Supplier shall deliver the Goods to the Premises within thirty days of the Order.", ""]
+    new = ["", "The Supplier shall deliver the Goods to the Premises within sixty days of the Order, at its own cost."]
+    steps = align_paragraphs(old, new)
+    assert [(s.old_index, s.new_index) for s in steps if s.old_index is not None and s.new_index is not None] == [
+        (0, 1)
+    ]
 
 
 def test_short_trim_at_a_genuine_boundary_is_not_rejected() -> None:
