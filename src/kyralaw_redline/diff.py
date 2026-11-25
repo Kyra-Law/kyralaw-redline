@@ -332,6 +332,66 @@ def _render_run(run: list[_Opcode], old_tokens: list[str], new_tokens: list[str]
     return merged if _changed_length(merged) < _changed_length(naive) else naive
 
 
+def _word_opcodes(old_tokens: list[str], new_tokens: list[str]) -> list[_Opcode]:
+    """Opcodes over the full token lists, from matching their words and punctuation alone.
+
+    ``SequenceMatcher`` never lets a junk token inside a matching block, so with whitespace
+    as junk its "longest match" was one word: a word with punctuation against it ("Parties,",
+    two tokens) outranked a four-word phrase ("on a consolidated basis"), anchored the
+    diff, and the phrase came out deleted and reinserted where Word keeps it. Matching the
+    sequences with the whitespace taken out lets a block run across words, so the longest
+    common phrase anchors first, as in Word's comparison and Docxodus's.
+
+    The matches are mapped back onto the full lists. An equal block keeps the whitespace
+    between its words only where both sides have the same; where they differ, that
+    whitespace alone becomes a change.
+    """
+    oc = [i for i, t in enumerate(old_tokens) if not t.isspace()]
+    nc = [j for j, t in enumerate(new_tokens) if not t.isspace()]
+    if not oc or not nc:
+        sm = difflib.SequenceMatcher(_is_junk_token, old_tokens, new_tokens, autojunk=False)
+        return list(sm.get_opcodes())
+
+    def bound(content: list[int], tokens: list[str], k: int) -> int:
+        # Where content token k's stretch starts: just after token k-1, so it takes the
+        # whitespace before it; the end of the list for the stretch after the last.
+        if k == 0:
+            return 0
+        return len(tokens) if k == len(content) else content[k - 1] + 1
+
+    out: list[_Opcode] = []
+
+    def emit(tag: str, i1: int, i2: int, j1: int, j2: int) -> None:
+        if i1 == i2 and j1 == j2:
+            return
+        if tag == "replace" and i1 == i2:
+            tag = "insert"
+        elif tag == "replace" and j1 == j2:
+            tag = "delete"
+        if tag == "equal" and out and out[-1][0] == "equal":
+            out[-1] = ("equal", out[-1][1], i2, out[-1][3], j2)
+        else:
+            out.append((tag, i1, i2, j1, j2))
+
+    sm = difflib.SequenceMatcher(None, [old_tokens[i] for i in oc], [new_tokens[j] for j in nc], autojunk=False)
+    for tag, a1, a2, b1, b2 in sm.get_opcodes():
+        i1, i2 = bound(oc, old_tokens, a1), bound(oc, old_tokens, a2)
+        j1, j2 = bound(nc, new_tokens, b1), bound(nc, new_tokens, b2)
+        if tag != "equal":
+            emit(tag, i1, i2, j1, j2)
+            continue
+        oi, nj = i1, j1
+        for k in range(a2 - a1):
+            ot, nt = oc[a1 + k], nc[b1 + k]
+            same_space = old_tokens[oi:ot] == new_tokens[nj:nt]
+            emit("equal" if same_space else "replace", oi, ot, nj, nt)
+            emit("equal", ot, ot + 1, nt, nt + 1)
+            oi, nj = ot + 1, nt + 1
+        if i2 > oi or j2 > nj:  # whitespace after the paragraph's last word
+            emit("equal" if old_tokens[oi:i2] == new_tokens[nj:j2] else "replace", oi, i2, nj, j2)
+    return out
+
+
 def diff_paragraph(old_text: str, new_text: str) -> list[DiffSegment]:
     """Word-level diff of two paragraph-sized texts."""
     old_tokens = _tokenize(old_text)
@@ -344,8 +404,7 @@ def diff_paragraph(old_text: str, new_text: str) -> list[DiffSegment]:
             segments.append(DiffSegment("insert", new_text))
         return segments
 
-    sm = difflib.SequenceMatcher(_is_junk_token, old_tokens, new_tokens, autojunk=False)
-    groups = _group_runs(list(sm.get_opcodes()), old_tokens)
+    groups = _group_runs(_word_opcodes(old_tokens, new_tokens), old_tokens)
     segments = []
     for group in groups:
         if isinstance(group, list):
@@ -353,7 +412,44 @@ def diff_paragraph(old_text: str, new_text: str) -> list[DiffSegment]:
         else:
             _, i1, i2, _, _ = group
             segments.append(DiffSegment("equal", "".join(old_tokens[i1:i2])))
-    return segments
+    return _canonical(segments)
+
+
+def _canonical(segments: list[DiffSegment]) -> list[DiffSegment]:
+    """Each stretch of changes as one deletion then one insertion, equal text joined up.
+
+    Matching on words alone (:func:`_word_opcodes`) can leave a stretch of changes with no
+    unchanged text inside it as several deletions and insertions in turn, which reads as
+    one change and which the in-place renderer cannot place: it expects every change to
+    sit between unchanged text.
+    """
+    out: list[DiffSegment] = []
+    deleted: list[str] = []
+    inserted: list[str] = []
+
+    def flush() -> None:
+        if deleted:
+            out.append(DiffSegment("delete", "".join(deleted)))
+        if inserted:
+            out.append(DiffSegment("insert", "".join(inserted)))
+        deleted.clear()
+        inserted.clear()
+
+    for seg in segments:
+        if not seg.text:
+            continue
+        if seg.kind == "delete":
+            deleted.append(seg.text)
+        elif seg.kind == "insert":
+            inserted.append(seg.text)
+        else:
+            flush()
+            if out and out[-1].kind == "equal":
+                out[-1] = DiffSegment("equal", out[-1].text + seg.text)
+            else:
+                out.append(seg)
+    flush()
+    return out
 
 
 def compute_redline_segments(old_text: str, new_text: str) -> list[DiffSegment]:

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from kyralaw_redline.diff import (
     DiffSegment,
+    _canonical,
     added_text,
     align_paragraphs,
     compute_redline_segments,
@@ -100,7 +101,7 @@ def test_small_edit_next_to_a_new_paragraph_does_not_confuse_the_small_edit() ->
         "The Supplier shall deliver the Goods to the Buyer within 14 days of the order.\n"
     )
     segments = compute_redline_segments(old_text, new_text)
-    assert removed_text(segments) == "(or 21 days) "
+    assert removed_text(segments).strip() == "(or 21 days)"
     assert ", as amended" in added_text(segments)
     assert "inspect the Goods" in added_text(segments)
 
@@ -109,25 +110,31 @@ def test_merges_across_a_wrongly_anchored_common_word() -> None:
     """'the "Licensor" or the "Owner"' -> 'the "Owner"' (plus a curly to
     straight quote change). A third "the" later in the sentence lets
     SequenceMatcher anchor the middle "the" to the wrong occurrence; the
-    merge-and-trim in _render_run collapses it back to one edit.
-
-    Fails if _group_runs never groups across a sandwiched equal.
+    merge-and-trim in _render_run collapsed it back to one edit; matching on
+    words (_word_opcodes) no longer anchors it there at all. "Owner" itself is
+    unchanged, so only its quotes are marked.
     """
     segments = diff_paragraph(
         "Northwind Ltd shall be referred to as the “Licensor” or the “Owner”, "
         "and Sam Doe shall be referred to as the “Licensee”.",
         'Northwind Ltd shall be referred to as the "Owner", and Sam Doe shall be referred to as the “Licensee”.',
     )
-    assert removed_text(segments) == "“Licensor” or the “Owner”,"
-    assert added_text(segments) == '"Owner",'
+    assert [(s.kind, s.text) for s in segments if s.kind != "equal"] == [
+        ("delete", "“Licensor” or the “"),
+        ("insert", '"'),
+        ("delete", "”,"),
+        ("insert", '",'),
+    ]
 
 
 def test_merges_across_a_wrongly_anchored_repeated_phrase() -> None:
     """ "thirty (30) days" appears twice; the first is changed, the second is
-    not. SequenceMatcher anchors the second occurrence, so without a wide
-    enough sandwiched-equal cap the real edit renders as unchanged.
+    not. Matching words one at a time anchored the second occurrence, and only
+    merging across the sandwiched equals (_group_runs) recovered the edit, as one
+    wide replacement. Matching on words (_word_opcodes) anchors the right one,
+    so each changed word is marked on its own.
 
-    Fails with _MAX_SANDWICHED_EQUAL_TOKENS = 1.
+    Fails if _word_opcodes matches with whitespace as junk instead.
     """
     segments = diff_paragraph(
         "notice of termination of thirty (30) days to the Supplier.  On such termination, "
@@ -137,16 +144,16 @@ def test_merges_across_a_wrongly_anchored_repeated_phrase() -> None:
         "the Customer shall refund the sums described in Clause 9.2 above within thirty (30) days of such "
         "termination.",
     )
-    assert (
-        removed_text(segments)
-        == "thirty (30) days to the Supplier.  On such termination, the Supplier shall refund the sums described in "
-        "Clause 9.1"
-    )
-    assert (
-        added_text(segments)
-        == "[NUMBER] days to the Customer.  On such termination, the Customer shall refund the sums described in "
-        "Clause 9.2"
-    )
+    assert [(s.kind, s.text) for s in segments if s.kind != "equal"] == [
+        ("delete", "thirty (30)"),
+        ("insert", "[NUMBER]"),
+        ("delete", "Supplier"),
+        ("insert", "Customer"),
+        ("delete", "Supplier"),
+        ("insert", "Customer"),
+        ("delete", "1"),
+        ("insert", "2"),
+    ]
     assert "above within thirty (30) days of such termination" in _equal_text(segments)
 
 
@@ -224,6 +231,38 @@ def test_a_possessive_is_one_word() -> None:
     segments = diff_paragraph("subject to the Licensee's prior consent", "subject to the Licensor's prior consent")
     assert removed_text(segments) == "Licensee's"
     assert added_text(segments) == "Licensor's"
+
+
+def test_a_common_phrase_outranks_a_word_with_punctuation() -> None:
+    """With whitespace as junk the matcher could not match across words, so
+    "Parties," (two tokens) outranked "on a consolidated basis" and the phrase was
+    deleted and reinserted. Fails if _word_opcodes matches with whitespace as junk."""
+    segments = diff_paragraph(
+        "No Loan Party, on a standalone basis or on a consolidated basis with the other Loan Parties, has "
+        "unreasonably small capital",
+        "The Loan Parties, on a consolidated basis, do not have unreasonably small capital",
+    )
+    assert " on a consolidated basis" in _equal_text(segments)
+    assert "Parties" not in _equal_text(segments)
+
+
+def test_a_stretch_of_changes_is_one_deletion_then_one_insertion() -> None:
+    """Fails if diff_paragraph skips _canonical."""
+    segments = [
+        DiffSegment("equal", "a "),
+        DiffSegment("delete", "b"),
+        DiffSegment("insert", "c"),
+        DiffSegment("delete", " d"),
+        DiffSegment("insert", " e"),
+        DiffSegment("equal", " f"),
+        DiffSegment("equal", " g"),
+    ]
+    assert _canonical(segments) == [
+        DiffSegment("equal", "a "),
+        DiffSegment("delete", "b d"),
+        DiffSegment("insert", "c e"),
+        DiffSegment("equal", " f g"),
+    ]
 
 
 def test_short_trim_at_a_genuine_boundary_is_not_rejected() -> None:
