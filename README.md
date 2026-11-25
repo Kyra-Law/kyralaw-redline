@@ -118,13 +118,17 @@ card explains how it was made and what was left out. [`eval/bench.py`](eval/benc
 Word needed:
 
 ```bash
-uvx --from huggingface_hub hf download kyralaw/kyralaw-redline-bench --repo-type dataset --local-dir kyralaw-redline-bench
-
-uv run python eval/bench.py kyralaw-redline-bench                      # built-in algorithms, test
-uv run python eval/bench.py kyralaw-redline-bench --split dev
-uv run python eval/bench.py kyralaw-redline-bench --redlines mine=out/  # your redlines: out/<id>.docx
-uv run python eval/bench.py kyralaw-redline-bench -a word-compare       # check the scorer: 100.00
+uv run python eval/bench.py                          # built-in algorithms, test
+uv run python eval/bench.py --split dev
+uv run python eval/bench.py --redlines mine=out/     # your redlines: out/<id>.docx
+uv run python eval/bench.py -a word-compare          # check the scorer: 100.00
 ```
+
+The first run downloads the dataset from Hugging Face, at the revision
+[`eval/bench_data.py`](eval/bench_data.py) pins, into the local Hugging Face cache (about 320 MB);
+later runs read the cache and need no network. Every file is checked against the dataset's
+`SHA256SUMS` before anything is scored. To score a copy of your own, pass its folder:
+`eval/bench.py path/to/kyralaw-redline-bench`.
 
 **Scoring.** Each algorithm runs end to end, `.docx` in and `.docx` out. The text a redline marks
 inserted and deleted is read back from the file it wrote and compared with the same read of Word's
@@ -188,25 +192,30 @@ uv run ruff format --check . && uv run ruff check . && uv run mypy
 
 ## Verify in a clean container
 
-The [`Dockerfile`](Dockerfile) builds a Linux machine holding nothing but this repository and its
-locked dependencies, and [`scripts/verify.sh`](scripts/verify.sh) checks everything this README
-claims, with no network:
+The [`Dockerfile`](Dockerfile) builds a Linux machine holding nothing but this repository, its
+locked dependencies and kyralaw-redline-bench, and [`scripts/verify.sh`](scripts/verify.sh) checks
+everything this README claims, with no network:
 
 ```bash
 docker build -t kyralaw-redline .
-docker run --rm --network none kyralaw-redline
-docker run --rm --network none -v "$PWD/kyralaw-redline-bench":/data:ro kyralaw-redline   # downloaded as above
+docker run --rm --network none kyralaw-redline                              # everything, ~45 min
+docker run --rm --network none -e KYRALAW_BENCH_SPLIT=dev kyralaw-redline   # the 48 dev pairs, a few minutes
 ```
 
+- **The dataset:** the build downloads it from Hugging Face at the pinned revision, checks every
+  file against its `SHA256SUMS` and puts it in the image at `/data`. Docker's build cache keeps the
+  download, so a rebuild fetches it again only when the pinned revision changes. To score another
+  copy, mount it over `/data`.
 - **Isolation:** no other Kyra Law codebase is installed or referred to anywhere in the code.
 - **Everything CI checks:** the commands under Development.
-- **With the dataset mounted:** every engine scores kyralaw-redline-bench's 685 test pairs, in
-  parallel, and each score must equal the one in [`bench/results.md`](bench/results.md), which was
-  produced on macOS. Word's own reference must score 100.00 and nothing may have an integrity
-  failure. On a 10-core machine this takes about 45 minutes, most of it python-redlines;
-  `-e KYRALAW_BENCH_SPLIT=dev` runs the 48 dev pairs in a few minutes, without the comparison.
+- **The benchmark:** every engine scores the 685 test pairs, in parallel, and each score must equal
+  the one in [`bench/results.md`](bench/results.md), which was produced on macOS. Word's own
+  reference must score 100.00 and nothing may have an integrity failure. On a 10-core machine this
+  takes about 45 minutes, most of it python-redlines. The dev split runs without the comparison;
+  `-e KYRALAW_BENCH=skip` skips scoring altogether, and says so.
 
-CI builds the image and runs the first check on every push, on x86-64 Linux.
+CI builds the image on every push, on x86-64 Linux, which fetches and checks the dataset, and runs
+everything except the scoring.
 
 ## Licence
 

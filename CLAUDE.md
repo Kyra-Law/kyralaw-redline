@@ -44,10 +44,14 @@ Guidance for Claude Code working in this repository. This repository is intended
 that moves a kyralaw-redline-bench score must update `bench/results.md` in the same change: the
 container compares every score with it.
 
-**CI scores no redlines.** The dataset lives on Hugging Face, not here, so CI checks lint, types and tests
-but scores nothing. A change to `diff.py` or `inplace.py` is scored by hand before it lands: `verify.sh` with the
-dataset mounted, or `eval/bench.py` on the test split, compared with `bench/results.md`. Use the
-`dev` split for tuning, never `test`.
+**CI scores no redlines.** It builds the image, which fetches the dataset and checks every file,
+then runs lint, types and tests with `KYRALAW_BENCH=skip`. A change to `diff.py` or `inplace.py` is
+scored by hand before it lands: a full `docker run`, or `eval/bench.py` on the test split, compared
+with `bench/results.md`. Use the `dev` split for tuning, never `test`.
+
+**The dataset comes from Hugging Face at the revision `eval/bench_data.py` pins**, cached locally
+and checked against its `SHA256SUMS`. Move `REVISION` only together with `bench/results.md`, since
+the container compares every score with it.
 
 ```bash
 uv run pytest

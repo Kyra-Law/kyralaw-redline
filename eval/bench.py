@@ -9,15 +9,19 @@ against that reference. The dataset is MIT licensed, like this repository.
 
 Usage::
 
-    python eval/bench.py DATA                          # the built-in algorithms, test split
-    python eval/bench.py DATA --split dev              # the 48 pairs meant for tuning
-    python eval/bench.py DATA -a kyralaw-redline       # one algorithm (repeatable)
-    python eval/bench.py DATA -a python-redlines       # needs: pip install python-redlines
-    python eval/bench.py DATA -a word-compare          # Word's reference as a candidate: must give 100
-    python eval/bench.py DATA --redlines mine=out/     # score your own: out/<pair id>.docx
-    python eval/bench.py DATA --json results.json --save-redlines out/
+    python eval/bench.py                               # the built-in algorithms, test split
+    python eval/bench.py --split dev                   # the 48 pairs meant for tuning
+    python eval/bench.py -a kyralaw-redline            # one algorithm (repeatable)
+    python eval/bench.py -a python-redlines            # needs: pip install python-redlines
+    python eval/bench.py -a word-compare               # Word's reference as a candidate: must give 100
+    python eval/bench.py --redlines mine=out/          # score your own: out/<pair id>.docx
+    python eval/bench.py --json results.json --save-redlines out/
+    python eval/bench.py DATA ...                      # a copy of the dataset in folder DATA
 
-``DATA`` is the dataset folder, holding ``dev.jsonl``, ``test.jsonl`` and ``pairs/``.
+Without ``DATA``, the dataset comes from Hugging Face at the revision
+``eval/bench_data.py`` pins: downloaded once into the local Hugging Face cache, read from
+there afterwards, and checked against its ``SHA256SUMS`` either way. ``DATA``, when
+given, is a folder holding ``dev.jsonl``, ``test.jsonl`` and ``pairs/``.
 
 **What is compared.** The text each redline marks inserted and deleted, read from its
 ``word/document.xml`` body (headers, footers and notes are not scored), against the
@@ -71,6 +75,7 @@ from xml.etree import ElementTree
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import bench_data
 from engines import ALGORITHMS
 
 from kyralaw_redline.engine import RedlineEngine, check_engine_name
@@ -536,7 +541,9 @@ def report(summaries: dict[str, dict[str, Any]], split: str, pairs: int) -> str:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("data", type=Path, help="the dataset folder (dev.jsonl, test.jsonl, pairs/)")
+    parser.add_argument(
+        "data", type=Path, nargs="?", help="a dataset folder (default: Hugging Face, cached locally; see above)"
+    )
     parser.add_argument("--split", choices=("test", "dev"), default="test")
     parser.add_argument(
         "-a", "--algorithm", action="append", choices=sorted({*ALGORITHMS, *OPTIONAL}), help="repeatable"
@@ -549,7 +556,7 @@ def main() -> None:
     parser.add_argument("--save-redlines", type=Path, help="keep the redlines the algorithms wrote, per algorithm")
     args = parser.parse_args()
 
-    data: Path = args.data.expanduser().resolve()
+    data: Path = args.data.expanduser().resolve() if args.data else bench_data.fetch()
     split_file = data / f"{args.split}.jsonl"
     if not split_file.is_file():
         sys.exit(f"{split_file} not found; DATA is the kyralaw-redline-bench folder")

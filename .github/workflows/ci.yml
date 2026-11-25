@@ -30,9 +30,11 @@ jobs:
   container:
     # A clean Linux machine with nothing but this repository: the library and its tests
     # must pass with no network once the image is built, and with no other codebase
-    # installed. See the Dockerfile and scripts/verify.sh.
+    # installed. Building the image also fetches kyralaw-redline-bench at the pinned
+    # revision and checks every file; scoring it takes ~45 minutes, so CI skips that.
+    # See the Dockerfile and scripts/verify.sh.
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - run: docker build -t kyralaw-redline .
-      - run: docker run --rm --network none kyralaw-redline
+      - run: docker run --rm --network none -e KYRALAW_BENCH=skip kyralaw-redline

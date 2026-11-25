@@ -6,12 +6,14 @@
 # built:
 #
 #   docker build -t kyralaw-redline .
-#   docker run --rm --network none kyralaw-redline
-#   docker run --rm --network none -v /path/to/kyralaw-redline-bench:/data:ro kyralaw-redline
+#   docker run --rm --network none kyralaw-redline                                # everything, ~45 min
+#   docker run --rm --network none -e KYRALAW_BENCH_SPLIT=dev kyralaw-redline     # the 48 dev pairs
+#   docker run --rm --network none -e KYRALAW_BENCH=skip kyralaw-redline          # no scoring
 #
-# The second run also scores kyralaw-redline-bench with every engine and compares each
-# score with bench/results.md. Building the benchmark itself needs macOS with Microsoft
-# Word (bench/), so it is not part of this image. See scripts/verify.sh.
+# The image holds kyralaw-redline-bench at /data, fetched from Hugging Face at build time,
+# so a full run scores it with every engine and compares each score with bench/results.md.
+# Building the benchmark itself needs macOS with Microsoft Word (bench/), so it is not part
+# of this image. See scripts/verify.sh.
 
 FROM python:3.12-slim-bookworm
 
@@ -31,6 +33,14 @@ WORKDIR /repo
 # Dependencies first, from the lock file alone, so a code change does not reinstall them.
 COPY pyproject.toml uv.lock README.md LICENSE ./
 RUN uv sync --frozen --no-install-project --all-groups
+
+# kyralaw-redline-bench, from Hugging Face at the revision eval/bench_data.py pins, checked
+# against its SHA256SUMS and copied to /data. The only step that needs the network. The
+# BuildKit cache keeps the download between builds, and this layer rebuilds only when
+# bench_data.py changes, not when the rest of the code does.
+COPY eval/bench_data.py eval/
+RUN --mount=type=cache,target=/root/.cache/huggingface \
+    python eval/bench_data.py --to /data
 
 COPY . .
 RUN uv sync --frozen --all-groups \

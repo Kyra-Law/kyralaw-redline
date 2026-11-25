@@ -3,12 +3,14 @@
 # Dockerfile), where nothing but this repository is installed; it runs anywhere with the
 # dev and bench dependency groups installed.
 #
-#   scripts/verify.sh                  isolation, format, lint, types, tests
-#   KYRALAW_BENCH_DATA=/data           also score kyralaw-redline-bench (default /data when that
-#                                      folder exists) and compare every score with
-#                                      bench/results.md
+#   scripts/verify.sh                  isolation, format, lint, types, tests, then score
+#                                      kyralaw-redline-bench with every engine and compare
+#                                      every score with bench/results.md
+#   KYRALAW_BENCH_DATA=DIR             the dataset folder; default /data when it exists (the
+#                                      image), else Hugging Face via eval/bench_data.py, cached
 #   KYRALAW_BENCH_SPLIT=dev            the 48 dev pairs instead of the 685 test pairs: quicker,
 #                                      but bench/results.md is for test, so nothing is compared
+#   KYRALAW_BENCH=skip                 no scoring; says so, loudly
 #
 # Every step must pass; the first failure stops the run with a non-zero exit.
 
@@ -40,12 +42,21 @@ mypy
 step "Tests"
 pytest -q -p no:cacheprovider
 
-data="${KYRALAW_BENCH_DATA:-/data}"
-if [ ! -f "$data/test.jsonl" ]; then
-    step "kyralaw-redline-bench: not mounted at $data, skipped"
-    echo "to score it: docker run --rm --network none -v /path/to/kyralaw-redline-bench:/data:ro kyralaw-redline"
-    printf '\nAll checks passed (benchmark not scored).\n'
+if [ "${KYRALAW_BENCH:-}" = "skip" ]; then
+    step "kyralaw-redline-bench: NOT SCORED (KYRALAW_BENCH=skip)"
+    printf '\nAll checks passed, but no score was checked against bench/results.md.\n'
     exit 0
+fi
+
+step "kyralaw-redline-bench: the dataset"
+data="${KYRALAW_BENCH_DATA:-}"
+if [ -z "$data" ] && [ -f /data/SHA256SUMS ]; then
+    data=/data
+fi
+if [ -n "$data" ]; then
+    python eval/bench_data.py --check "$data"
+else
+    data="$(python eval/bench_data.py)"   # Hugging Face, downloaded once into the local cache
 fi
 
 split="${KYRALAW_BENCH_SPLIT:-test}"
