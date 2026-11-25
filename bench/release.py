@@ -395,6 +395,24 @@ Published by [Kyra Law](https://kyralaw.co.uk), version {VERSION}. Derived from
 [Harvey LAB]({LAB_REPOSITORY}) (MIT, Copyright (c) 2026 Harvey AI); not affiliated with or endorsed by
 Harvey.
 
+## Quick start
+
+Score your own redlines, one Word document per pair with tracked changes, using the scorer in
+[kyralaw-redline]({SCORER_REPOSITORY}). It needs [uv](https://docs.astral.sh/uv/), and no Word:
+
+```bash
+git clone {SCORER_REPOSITORY} && cd kyralaw-redline
+uv run python eval/bench.py --redlines mine=out/   # scores out/krb-NNN.docx, the test split
+uv run python eval/bench.py --split dev            # the built-in algorithms, on the dev split
+```
+
+The first run downloads this dataset into the local Hugging Face cache, at the revision the scorer
+pins, and checks every file against `SHA256SUMS`; later runs need no network. To get just the files:
+
+```bash
+uvx --from huggingface_hub hf download kyralaw/kyralaw-redline-bench --repo-type dataset --local-dir kyralaw-redline-bench
+```
+
 ## Contents
 
 | File | What |
@@ -482,7 +500,7 @@ it.
 
 The scorer (`eval/bench.py`) and the code that built this dataset (`bench/`) are in
 [kyralaw-redline]({SCORER_REPOSITORY}); tag [`{CODE_TAG}`]({SCORER_REPOSITORY}/tree/{CODE_TAG}) is the
-exact code that produced this version. Each redline
+exact code that built this version's pairs and scored the results below. Each redline
 is read for the text it marks inserted and deleted, through the same parser as the reference, and
 compared as bags of words: precision, recall and F1 for insertions and for deletions. Moved text
 counts as deleted where it was and inserted where it went, in the reference and in the candidate
