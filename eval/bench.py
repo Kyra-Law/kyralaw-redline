@@ -13,6 +13,7 @@ Usage::
     python eval/bench.py --split dev                   # the 48 pairs meant for tuning
     python eval/bench.py -a kyralaw-redline            # one algorithm (repeatable)
     python eval/bench.py -a python-redlines            # needs: pip install python-redlines
+    python eval/bench.py -a docxodus                   # needs: pip install docx-scalpel
     python eval/bench.py -a word-compare               # Word's reference as a candidate: must give 100
     python eval/bench.py --redlines mine=out/          # score your own: out/<pair id>.docx
     python eval/bench.py --json results.json --save-redlines out/
@@ -364,7 +365,7 @@ def score_redline(pair: str, redline: bytes, ref: Reference, seconds: float | No
 # Engines ---------------------------------------------------------------------
 #
 # Every algorithm scored here is a RedlineEngine: two .docx files in, one redline
-# .docx out. Beside those in eval/engines.py: python-redlines, word-compare, and redlines
+# .docx out. Beside those in eval/engines.py: docxodus, python-redlines, word-compare, and redlines
 # made elsewhere, read from a folder.
 
 
@@ -385,6 +386,37 @@ class PythonRedlinesEngine(RedlineEngine):
         out = self._comparer().run_redline("kyralaw-redline-bench", old_docx, new_docx)[0]
         if not out:
             raise RuntimeError("python-redlines returned no document")
+        return bytes(out)
+
+
+class DocxodusEngine(RedlineEngine):
+    """Docxodus's comparer through docx-scalpel, its own Python client, a third-party reference point.
+
+    The settings are the ones ``DocxCompare.Compare`` uses, the comparison Docxodus's
+    ``redline`` command runs: the engine's defaults, which docx-scalpel mirrors field for
+    field, plus ``pre_accept_input_revisions``. docx-scalpel sends every pair to one
+    long-running Docxodus process, so the time per pair leaves out .NET's start-up, which
+    python-redlines pays on every pair.
+    """
+
+    name = "docxodus"
+
+    @cache  # noqa: B019 - one client per engine, and there is one engine per run
+    def _client(self) -> tuple[Any, Any]:
+        try:
+            scalpel = importlib.import_module("docx_scalpel")
+        except ImportError:
+            sys.exit("-a docxodus needs the docx-scalpel package: pip install docx-scalpel")
+        settings = scalpel.DocxDiffSettings(
+            author_for_revisions="kyralaw-redline-bench", pre_accept_input_revisions=True
+        )
+        return scalpel, settings
+
+    def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
+        scalpel, settings = self._client()
+        out = scalpel.docx_diff_compare(old_docx, new_docx, settings)
+        if not out:
+            raise RuntimeError("docx-scalpel returned no document")
         return bytes(out)
 
 
@@ -446,7 +478,7 @@ class WordCompareEngine(PrebuiltRedlinesEngine):
         return self.folder / pair / "reference.docx"
 
 
-OPTIONAL = ("python-redlines", "word-compare")
+OPTIONAL = ("docxodus", "python-redlines", "word-compare")
 
 
 def run(
@@ -568,7 +600,9 @@ def main() -> None:
     index = pair_index(data, rows)
     engines: list[RedlineEngine] = []
     for name in names:
-        if name == "python-redlines":
+        if name == "docxodus":
+            engines.append(DocxodusEngine())
+        elif name == "python-redlines":
             engines.append(PythonRedlinesEngine())
         elif name == "word-compare":
             engines.append(WordCompareEngine(data, index))

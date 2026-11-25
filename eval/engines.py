@@ -5,7 +5,7 @@
 Every algorithm is a :class:`kyralaw_redline.engine.RedlineEngine`: two .docx files
 in, one redline .docx out. ``eval/bench.py`` scores every engine in ``ENGINES``
 unless told otherwise, and adds the optional ones it defines itself
-(python-redlines, word-compare). To add one, subclass RedlineEngine and list an
+(docxodus, python-redlines, word-compare). To add one, subclass RedlineEngine and list an
 instance in ``ENGINES``.
 """
 

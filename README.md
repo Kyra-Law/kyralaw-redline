@@ -122,6 +122,7 @@ uv run python eval/bench.py                          # built-in algorithms, test
 uv run python eval/bench.py --split dev
 uv run python eval/bench.py --redlines mine=out/     # your redlines: out/<id>.docx
 uv run python eval/bench.py -a word-compare          # check the scorer: 100.00
+uv run python eval/bench.py -a docxodus -a python-redlines   # the third-party comparers
 ```
 
 The first run downloads the dataset from Hugging Face, at the revision
@@ -210,7 +211,8 @@ docker run --rm --network none -e KYRALAW_BENCH_SPLIT=dev kyralaw-redline   # th
 - **Everything CI checks:** the commands under Development.
 - **The benchmark:** every engine scores the 685 test pairs, in parallel, and each score must equal
   the one in [`bench/results.md`](bench/results.md), which was produced on macOS. Word's own
-  reference must score 100.00 and nothing may have an integrity failure. On a 10-core machine this
+  reference must score 100.00, and none of this repository's engines may have an integrity failure;
+  a third-party engine's are compared with the table, like its scores. On a 10-core machine this
   takes about 45 minutes, most of it python-redlines. The dev split runs without the comparison;
   `-e KYRALAW_BENCH=skip` skips scoring altogether, and says so.
 

@@ -33,8 +33,9 @@ Repository = "https://github.com/Kyra-Law/kyralaw-redline"
 kyralaw-redline = "kyralaw_redline.cli:main"
 
 [dependency-groups]
-# The third-party comparer eval/bench.py can also score (-a python-redlines).
+# The third-party comparers eval/bench.py can also score (-a python-redlines, -a docxodus).
 bench = [
+    "docx-scalpel==0.14.0",
     "python-redlines==0.3.0",
     "python-redlines-ooxmlpowertools==0.3.0",
 ]

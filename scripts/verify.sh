@@ -60,7 +60,7 @@ else
 fi
 
 split="${KYRALAW_BENCH_SPLIT:-test}"
-engines=(word-compare python-redlines $(python -c "import sys; sys.path.insert(0, 'eval'); import engines; print(' '.join(engines.ALGORITHMS))"))
+engines=(word-compare python-redlines docxodus $(python -c "import sys; sys.path.insert(0, 'eval'); import engines; print(' '.join(engines.ALGORITHMS))"))
 step "kyralaw-redline-bench, $split split: ${#engines[@]} engines, in parallel"
 out="$(mktemp -d)"
 pids=()
@@ -93,8 +93,15 @@ for name, s in got.items():
 problems = []
 if f"{got['word-compare']['score']:.2f}" != "100.00":
     problems.append(f"word-compare scored {got['word-compare']['score']:.2f}; the scorer must give Word's own reference 100.00")
+# This repository's engines, and Word's reference, must give back both documents on every
+# pair. A third-party engine's integrity failures are a measurement, not a fault here: the
+# table above shows them, bench/results.md publishes them, and on test they are compared
+# with it like every other number.
+sys.path.insert(0, "eval")
+import engines
+own = {*engines.ALGORITHMS, "word-compare"}
 for name, s in got.items():
-    if s["integrity_failures"]:
+    if s["integrity_failures"] and name in own:
         problems.append(f"{name} has {s['integrity_failures']} integrity failures")
 if split == "test":
     # Every score in bench/results.md was produced on another machine; on this one each
@@ -118,6 +125,6 @@ if split == "test":
 if problems:
     print("\n".join(["", "FAILED:", *problems]))
     sys.exit(1)
-print("every score matches" if split == "test" else "word-compare is 100.00 and nothing has an integrity failure")
+print("every score matches" if split == "test" else "word-compare is 100.00 and no engine of this repository has an integrity failure")
 PY
 printf '\nAll checks passed.\n'

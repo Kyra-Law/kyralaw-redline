@@ -24,7 +24,7 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     UV_COMPILE_BYTECODE=1 \
     PATH=/opt/venv/bin:$PATH \
     PYTHONDONTWRITEBYTECODE=1 \
-    # python-redlines runs a self-contained .NET binary; the slim image has no ICU.
+    # python-redlines and docx-scalpel run self-contained .NET binaries; the slim image has no ICU.
     DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=1
 
 RUN useradd --create-home --uid 1000 checker

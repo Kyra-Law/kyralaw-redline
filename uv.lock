@@ -105,6 +105,18 @@ wheels = [
 ]
 
 [[package]]
+name = "docx-scalpel"
+version = "0.14.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/84/92/0e4b44631e0452784576b6a0132a5c45af361fdefdc4b2dfbc07489956ca/docx_scalpel-0.14.0.tar.gz", hash = "sha256:2f2a4c30e537269bf87a4e90b05a1e23c74d40dfa21f0e1bb031a2ac3c38e4b0", size = 161377, upload-time = "2026-11-24T01:52:03.041Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/db/d1/a03040ccaf24e6727f74e040ef388eca6ec16c7a9d6aa6de5c9316493e77/docx_scalpel-0.14.0-py3-none-macosx_11_0_arm64.whl", hash = "sha256:5214e888cbc66e1ac63e0472f4dbbdc0e1c7d884a1afbd77a72f41795877b127", size = 61543760, upload-time = "2026-11-24T01:51:47.592Z" },
+    { url = "https://files.pythonhosted.org/packages/41/5a/80194d9626e97e0aebfee1c514aca64446e57887f2a1e68701be10f34fd8/docx_scalpel-0.14.0-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:b7b5f4802e2abf9a3b66a83ec7cd62c9499aeca7bc9e5e3b266ddd70222f7a4a", size = 58090879, upload-time = "2026-11-24T01:51:52.367Z" },
+    { url = "https://files.pythonhosted.org/packages/90/b9/e8701d45bc3cf5f51d97c680b7bb576a912cacb483c48706db4b27cccade/docx_scalpel-0.14.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:57cbf48c4757a930d91502139b3a5cc9831c9a3cd460b5a4944fdd5a6c1934c4", size = 62573734, upload-time = "2026-11-24T01:51:56.502Z" },
+    { url = "https://files.pythonhosted.org/packages/45/00/7a1210048e6dc110d27b5d53fdca8a85326e9279c5dd1b265983fe7f259a/docx_scalpel-0.14.0-py3-none-win_amd64.whl", hash = "sha256:3d8e08440ce7fe552bf71a813b8d9b84424699b8fe4fa2176f0d9e30cc181822", size = 62363833, upload-time = "2026-11-24T01:52:00.141Z" },
+]
+
+[[package]]
 name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
@@ -319,6 +331,7 @@ dependencies = [
 
 [package.dev-dependencies]
 bench = [
+    { name = "docx-scalpel" },
     { name = "python-redlines" },
     { name = "python-redlines-ooxmlpowertools" },
 ]
@@ -339,6 +352,7 @@ requires-dist = [
 
 [package.metadata.requires-dev]
 bench = [
+    { name = "docx-scalpel", specifier = "==0.14.0" },
     { name = "python-redlines", specifier = "==0.3.0" },
     { name = "python-redlines-ooxmlpowertools", specifier = "==0.3.0" },
 ]
