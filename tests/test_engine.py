@@ -12,7 +12,6 @@ import pytest
 
 from kyralaw_redline import read_tracked_changes, redline_docx
 from kyralaw_redline.engine import (
-    AutoEngine,
     InPlaceEngine,
     RebuildEngine,
     RedlineEngine,
@@ -39,7 +38,7 @@ def test_a_name_that_is_not_lowercase_words_joined_by_hyphens_is_refused(name: s
 
 
 def test_good_names_pass() -> None:
-    for name in ("word-compare", "kyralaw-redline-in-place", "python-redlines", "v2"):
+    for name in ("word-compare", "kyralaw-redline", "python-redlines", "v2"):
         assert check_engine_name(name) == name
 
 
@@ -72,11 +71,12 @@ def test_an_engine_whose_name_is_never_set_cannot_be_called() -> None:
 
 
 @pytest.mark.parametrize(
-    ("engine", "mode"), [(InPlaceEngine(), "in-place"), (AutoEngine(), "auto"), (RebuildEngine(), "rebuild")]
+    ("engine", "mode", "name"),
+    [(InPlaceEngine(), "in-place", "kyralaw-redline"), (RebuildEngine(), "rebuild", "kyralaw-redline-rebuild")],
 )
-def test_the_library_engines_are_redline_docx_in_each_mode(engine: RedlineEngine, mode: Any) -> None:
+def test_the_library_engines_are_redline_docx_in_each_mode(engine: RedlineEngine, mode: Any, name: str) -> None:
     assert read_tracked_changes(engine(OLD, NEW)) == read_tracked_changes(redline_docx(OLD, NEW, mode=mode))
-    assert engine.name == f"kyralaw-redline-{mode}"
+    assert engine.name == name
 
 
 def test_every_benchmarked_algorithm_is_an_engine_with_its_own_name() -> None:

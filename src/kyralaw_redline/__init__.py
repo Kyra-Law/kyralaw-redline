@@ -11,7 +11,6 @@ from kyralaw_redline.diff import (
     removed_text,
 )
 from kyralaw_redline.docx_io import (
-    InPlaceFallbackWarning,
     build_redline_docx,
     extract_paragraphs,
     extract_text,
@@ -20,7 +19,6 @@ from kyralaw_redline.docx_io import (
     render_segments_docx,
 )
 from kyralaw_redline.engine import (
-    AutoEngine,
     InPlaceEngine,
     RebuildEngine,
     RedlineEngine,
@@ -30,10 +28,8 @@ from kyralaw_redline.engine import (
 from kyralaw_redline.inplace import InPlaceRedlineError, redline_in_place
 
 __all__ = [
-    "AutoEngine",
     "DiffSegment",
     "InPlaceEngine",
-    "InPlaceFallbackWarning",
     "InPlaceRedlineError",
     "ParagraphAlignment",
     "RebuildEngine",

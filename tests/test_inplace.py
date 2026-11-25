@@ -21,7 +21,6 @@ from lxml import etree
 from kyralaw_redline import inplace
 from kyralaw_redline.diff import align_paragraphs
 from kyralaw_redline.docx_io import (
-    InPlaceFallbackWarning,
     build_redline_docx,
     extract_text,
     read_tracked_changes,
@@ -616,22 +615,21 @@ def _refuse(*_args: object, **_kwargs: object) -> bytes:
     raise InPlaceRedlineError("refused for the test")
 
 
-def test_auto_mode_falls_back_to_rebuild_and_says_so(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_in_place_is_the_default_and_raises_rather_than_rebuild(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(inplace, "redline_in_place", _refuse)
     old, new = _save(_document("The fee is 100 pounds.")), _save(_document("The fee is 200 pounds."))
 
-    with pytest.warns(InPlaceFallbackWarning, match="refused for the test"):
-        data = redline_docx(old, new, date=DATE)
-
-    assert read_tracked_changes(data) == (["200"], ["100"])
-
-
-def test_in_place_mode_raises_instead_of_falling_back(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr(inplace, "redline_in_place", _refuse)
-    old, new = _save(_document("The fee is 100 pounds.")), _save(_document("The fee is 200 pounds."))
-
-    with pytest.raises(InPlaceRedlineError):
+    with pytest.raises(InPlaceRedlineError, match="refused for the test"):
+        redline_docx(old, new, date=DATE)
+    with pytest.raises(InPlaceRedlineError, match="refused for the test"):
         redline_docx(old, new, date=DATE, mode="in-place")
+
+
+def test_an_unknown_mode_is_refused() -> None:
+    old, new = _save(_document("The fee is 100 pounds.")), _save(_document("The fee is 200 pounds."))
+
+    with pytest.raises(ValueError, match="'auto'"):
+        redline_docx(old, new, date=DATE, mode="auto")  # type: ignore[arg-type]
 
 
 def test_align_paragraphs_pairs_edited_paragraphs_and_leaves_the_rest_one_sided() -> None:

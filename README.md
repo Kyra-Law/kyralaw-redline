@@ -5,7 +5,7 @@ evaluation set to measure them.
 
 ```bash
 pip install kyralaw-redline   # once published; for now: pip install git+https://github.com/Kyra-Law/kyralaw-redline
-kyralaw-redline old.docx new.docx -o redline.docx                  # in place, rebuilding if it must
+kyralaw-redline old.docx new.docx -o redline.docx                  # in place, keeping the formatting
 kyralaw-redline old.docx new.docx -o redline.docx --mode rebuild   # a clean, plain document
 ```
 
@@ -31,13 +31,13 @@ chosen with `redline_docx(..., mode=...)`:
 
 | Mode | Writes | Keeps the document's formatting | When to use |
 | --- | --- | --- | --- |
-| `"in-place"` | the tracked changes into the new document's own XML, the way Word's Compare does ([`inplace.py`](src/kyralaw_redline/inplace.py)) | yes: styles, numbering, tables, headers, footers, comments, sections | the redline someone will read |
-| `"rebuild"` | a new, plain document built from the two texts ([`docx_io.py`](src/kyralaw_redline/docx_io.py)) | no | a content-only redline; the fallback |
-| `"auto"` (default) | in place, or rebuilt when in place is not possible, with an `InPlaceFallbackWarning` | when it can | the default |
+| `"in-place"` (default) | the tracked changes into the new document's own XML, the way Word's Compare does ([`inplace.py`](src/kyralaw_redline/inplace.py)) | yes: styles, numbering, tables, headers, footers, comments, sections | the redline someone will read |
+| `"rebuild"` | a new, plain document built from the two texts ([`docx_io.py`](src/kyralaw_redline/docx_io.py)) | no | a content-only redline, or when in place is not possible |
 
 Before returning, the in-place renderer reads its own result back: accepting every change must give
 the new document and rejecting every change the old one. A result that fails is never returned:
-`"in-place"` raises `InPlaceRedlineError`, and `"auto"` rebuilds instead and warns.
+`InPlaceRedlineError` is raised instead, and nothing is rebuilt behind your back. Ask for
+`"rebuild"` if a plain redline will do.
 
 ## Why
 
@@ -57,12 +57,12 @@ correct for that. Each has a regression test that fails when the heuristic is re
 | Function | Does |
 | --- | --- |
 | `compute_redline_segments(old, new)` | the diff: an ordered list of `DiffSegment(kind, text)`, lossless both ways |
-| `redline_docx(old_docx, new_docx, *, author, date, mode)` | redline two `.docx` files; `mode` is `"auto"`, `"in-place"` or `"rebuild"` (above) |
+| `redline_docx(old_docx, new_docx, *, author, date, mode)` | redline two `.docx` files; `mode` is `"in-place"` (default) or `"rebuild"` (above) |
 | `redline_in_place(old_docx, new_docx, *, author, date, keep_pending)` | the in-place renderer itself; `keep_pending` keeps both documents' pending revisions for a revised document edited directly from the base |
 | `build_redline_docx(old, new, *, author, date)` | the rebuild renderer: diff two texts and render a new `.docx` with `w:ins` / `w:del` |
 | `align_paragraphs(old, new)` | the paragraph alignment both renderers use, with a word diff per edited pair |
 | `RedlineEngine` | the interface every algorithm implements: a `name` and `redline(old_docx, new_docx) -> bytes`; see below |
-| `InPlaceEngine`, `AutoEngine`, `RebuildEngine` | this library's three modes as engines |
+| `InPlaceEngine`, `RebuildEngine` | this library's two modes as engines, named `kyralaw-redline` and `kyralaw-redline-rebuild` |
 | `render_segments_docx(segments, *, author, date)` | render any segment list through the same writer |
 | `extract_text(docx, *, view)` | a `.docx`'s body text, pending changes accepted (`view="accepted"`) or rejected (`"original"`) |
 | `extract_paragraphs(docx, *, view)` | the same, one string per paragraph, empty ones included |
@@ -78,9 +78,9 @@ Every algorithm, this library's and every one it is compared with, is a `Redline
 `.docx` files in, one redline `.docx` out.
 
 ```python
-from kyralaw_redline import RedlineEngine, AutoEngine
+from kyralaw_redline import InPlaceEngine, RedlineEngine
 
-redline = AutoEngine(author="Reviewer")(old_docx, new_docx)  # bytes, bytes -> bytes
+redline = InPlaceEngine(author="Reviewer")(old_docx, new_docx)  # bytes, bytes -> bytes
 
 
 class MyEngine(RedlineEngine):
@@ -144,20 +144,19 @@ rewarded nor penalised.
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | `word-compare` | Word's own reference, scored as a candidate: a check on the scorer | 100.00 | 100.00 | 1.000 | 0 | |
 | `python-redlines` | [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0, Open XML PowerTools' comparer | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
-| **`kyralaw-redline-auto`** | this library's default: in place, rebuilt only if that fails (it never did here) | **94.08** | 91.34 | 0.996 | 0 | 234 ms |
-| `kyralaw-redline-in-place` | this library, `mode="in-place"`: all 685 pairs written in place | 94.08 | 91.34 | 0.996 | 0 | 233 ms |
+| **`kyralaw-redline`** | this library's default, `mode="in-place"`: all 685 pairs written in place | **94.08** | 91.34 | 0.996 | 0 | 233 ms |
 | `kyralaw-native` | the first in-place renderer, frozen as a baseline ([`eval/kyralaw_native.py`](eval/kyralaw_native.py)); refuses 3 pairs, left out | 94.05 | 91.30 | 0.995 | 0 | 122 ms |
 | `kyralaw-redline-rebuild` | this library, `mode="rebuild"` | 78.72 | 92.39 | 0.514 | 0 | 353 ms |
 | `token-diff` | a token-level difflib, no alignment or heuristics | 62.60 | 68.02 | 0.518 | 0 | 1.57 s |
 | `line-diff` | a line diff | 49.68 | 48.56 | 0.519 | 0 | 220 ms |
 
-- **`kyralaw-redline-in-place` and `kyralaw-native` mark the same changes.** On the 682 pairs
+- **`kyralaw-redline` and `kyralaw-native` mark the same changes.** On the 682 pairs
   `kyralaw-native` writes in place they score 94.07 and 94.05.
 - **Only `kyralaw-native` refuses.** On 3 pairs, tables where a row is deleted or added and the
   same value recurs in other rows, its own accept/reject check fails and it produces nothing.
-  `kyralaw-redline-in-place` keeps every pair inside corresponding table rows and writes those 3
-  in place too (about 96 each), so `kyralaw-redline-auto` never needed its fallback here.
-- **`kyralaw-redline-rebuild` marks the text about a point better than `kyralaw-redline-in-place`**,
+  `kyralaw-redline` keeps every pair inside corresponding table rows and writes those 3 in place
+  too (about 96 each).
+- **`kyralaw-redline-rebuild` marks the text about a point better than `kyralaw-redline`**,
   though they share one diff. They read the documents differently: rebuild diffs the text
   `extract_text` gives, in-place the paragraphs of the documents themselves, table cells included.
   Which reading costs what is worth a closer look.

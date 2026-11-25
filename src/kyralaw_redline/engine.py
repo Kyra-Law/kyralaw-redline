@@ -6,7 +6,7 @@ A redline engine takes two Word documents and returns a third: the redline, with
 the changes from the first to the second marked as tracked changes (``w:ins`` and
 ``w:del``)::
 
-    engine = AutoEngine()
+    engine = InPlaceEngine()
     redline = engine(old_docx, new_docx)   # bytes, bytes -> bytes
 
 To add an algorithm, subclass :class:`RedlineEngine`, give it a ``name`` (lowercase
@@ -42,7 +42,7 @@ def check_engine_name(name: object) -> str:
 class RedlineEngine(ABC):
     """A redline algorithm: two .docx files in, one redline .docx out."""
 
-    #: Lowercase words joined by hyphens, e.g. ``"kyralaw-redline-auto"``. Set on the
+    #: Lowercase words joined by hyphens, e.g. ``"kyralaw-redline-rebuild"``. Set on the
     #: class; an engine whose name is only known at run time sets it in ``__init__``.
     name: str
     #: Whether timing a call measures the algorithm. False for an engine that only
@@ -84,17 +84,11 @@ class _KyralawRedline(RedlineEngine):
 
 
 class InPlaceEngine(_KyralawRedline):
-    """The tracked changes written into the new document itself; raises when that is not possible."""
+    """The library's default: the tracked changes written into the new document itself.
+    Raises :class:`kyralaw_redline.inplace.InPlaceRedlineError` when that is not possible."""
 
-    name = "kyralaw-redline-in-place"
+    name = "kyralaw-redline"
     _mode = "in-place"
-
-
-class AutoEngine(_KyralawRedline):
-    """In place, and rebuilt when that is not possible, with a warning: the library's default."""
-
-    name = "kyralaw-redline-auto"
-    _mode = "auto"
 
 
 class RebuildEngine(_KyralawRedline):

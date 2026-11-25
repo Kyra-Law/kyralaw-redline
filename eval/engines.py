@@ -19,7 +19,7 @@ from kyralaw_native import NativeEngine
 
 from kyralaw_redline import DiffSegment, extract_text, render_segments_docx
 from kyralaw_redline.diff import _tokenize
-from kyralaw_redline.engine import AutoEngine, InPlaceEngine, RebuildEngine, RedlineEngine
+from kyralaw_redline.engine import InPlaceEngine, RebuildEngine, RedlineEngine
 
 FIXED_DATE = datetime(2026, 1, 1, tzinfo=timezone.utc)
 
@@ -61,11 +61,10 @@ class TokenDiffEngine(RedlineEngine):
         return render_segments_docx(_opcode_segments(old, new, str.isspace), date=FIXED_DATE)
 
 
-# kyralaw-redline-in-place is strict: a pair it cannot redline in place fails
-# loudly, where kyralaw-redline-auto would rebuild it with a warning.
+# kyralaw-redline writes in place or not at all: a pair it cannot redline in place
+# is reported as unscored, never quietly rebuilt.
 ENGINES: tuple[RedlineEngine, ...] = (
     InPlaceEngine(date=FIXED_DATE),
-    AutoEngine(date=FIXED_DATE),
     RebuildEngine(date=FIXED_DATE),
     NativeEngine(date=FIXED_DATE),
     TokenDiffEngine(),

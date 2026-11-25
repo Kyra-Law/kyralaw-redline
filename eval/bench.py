@@ -11,7 +11,7 @@ Usage::
 
     python eval/bench.py DATA                          # the built-in algorithms, test split
     python eval/bench.py DATA --split dev              # the 48 pairs meant for tuning
-    python eval/bench.py DATA -a kyralaw-redline-auto  # one algorithm (repeatable)
+    python eval/bench.py DATA -a kyralaw-redline       # one algorithm (repeatable)
     python eval/bench.py DATA -a python-redlines       # needs: pip install python-redlines
     python eval/bench.py DATA -a word-compare          # Word's reference as a candidate: must give 100
     python eval/bench.py DATA --redlines mine=out/     # score your own: out/<pair id>.docx

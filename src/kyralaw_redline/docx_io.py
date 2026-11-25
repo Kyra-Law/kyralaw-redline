@@ -23,7 +23,6 @@ from __future__ import annotations
 
 import io
 import itertools
-import warnings
 import zipfile
 from datetime import datetime, timezone
 from typing import Literal, cast
@@ -341,11 +340,7 @@ def build_redline_docx(
     return render_segments_docx(compute_redline_segments(old_text, new_text), author=author, date=date)
 
 
-Mode = Literal["auto", "in-place", "rebuild"]
-
-
-class InPlaceFallbackWarning(UserWarning):
-    """``mode="auto"`` could not redline in place and rebuilt the document instead."""
+Mode = Literal["in-place", "rebuild"]
 
 
 def redline_docx(
@@ -354,36 +349,31 @@ def redline_docx(
     *,
     author: str = DEFAULT_AUTHOR,
     date: datetime | None = None,
-    mode: Mode = "auto",
+    mode: Mode = "in-place",
 ) -> bytes:
     """Compare two .docx files and return a redline .docx with tracked changes.
 
     ``mode`` picks the renderer; both render the same diff
     (:func:`kyralaw_redline.diff.align_paragraphs` and its passes):
 
-    - ``"in-place"``: the tracked changes are written into ``new_docx``'s own XML,
-      so its styles, numbering, tables, headers, footers and comments survive
-      (:func:`kyralaw_redline.inplace.redline_in_place`). Raises
+    - ``"in-place"`` (the default): the tracked changes are written into
+      ``new_docx``'s own XML, so its styles, numbering, tables, headers, footers and
+      comments survive (:func:`kyralaw_redline.inplace.redline_in_place`). Raises
       :class:`kyralaw_redline.inplace.InPlaceRedlineError` when it cannot produce
-      a redline that passes its own accept/reject read-back.
+      a redline that passes its own accept/reject read-back; nothing is rebuilt
+      behind the caller's back.
     - ``"rebuild"``: a new, plain document built from the two texts,
       ``build_redline_docx(extract_text(old), extract_text(new))``. Always
       succeeds; formatting is not carried over.
-    - ``"auto"`` (the default): in-place, and rebuild when in-place cannot, with an
-      :class:`InPlaceFallbackWarning` saying why, so a fallback is never silent.
     """
     if mode == "rebuild":
         return build_redline_docx(extract_text(old_docx), extract_text(new_docx), author=author, date=date)
+    if mode != "in-place":
+        raise ValueError(f"mode must be 'in-place' or 'rebuild', not {mode!r}")
     # Imported here: inplace imports this module for DEFAULT_AUTHOR.
-    from kyralaw_redline.inplace import InPlaceRedlineError, redline_in_place
+    from kyralaw_redline.inplace import redline_in_place
 
-    try:
-        return redline_in_place(old_docx, new_docx, author=author, date=date)
-    except InPlaceRedlineError as exc:
-        if mode == "in-place":
-            raise
-        warnings.warn(f"redlining in place failed ({exc}); rebuilt the document instead", InPlaceFallbackWarning, 2)
-        return build_redline_docx(extract_text(old_docx), extract_text(new_docx), author=author, date=date)
+    return redline_in_place(old_docx, new_docx, author=author, date=date)
 
 
 def read_tracked_changes(docx_bytes: bytes) -> tuple[list[str], list[str]]:

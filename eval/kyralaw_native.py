@@ -14,7 +14,7 @@ what it had then:
 Like the in-place renderer it refuses a pair whose read-back fails. It used to fall
 back to a text renderer, which is not part of this repository, so here a refused
 pair is reported as unscored. Kept so the results show what the current renderer
-changed; use :class:`kyralaw_redline.engine.AutoEngine` for real work.
+changed; use :class:`kyralaw_redline.engine.InPlaceEngine` for real work.
 """
 
 from __future__ import annotations

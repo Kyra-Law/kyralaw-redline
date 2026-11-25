@@ -35,9 +35,9 @@ The guarantee
 Before anything is returned, the result is read back two ways: accepting every
 revision must give the revised document's paragraphs, and rejecting every
 revision must give the base document's. A result failing either check is not
-returned. :class:`InPlaceRedlineError` is raised instead, so a caller can fall
-back to the rebuild renderer rather than hand a reader a redline that misstates
-what changed (``redline_docx(..., mode="auto")`` does exactly that).
+returned. :class:`InPlaceRedlineError` is raised instead, so a caller can choose
+the rebuild renderer (``redline_docx(..., mode="rebuild")``) rather than hand a
+reader a redline that misstates what changed.
 
 Known limits
 ------------
@@ -150,8 +150,8 @@ class InPlaceRedlineError(ValueError):
     """The two documents could not be redlined in place.
 
     Raised for an input that is not a readable .docx, and for a result that
-    fails its own read-back check. Either way nothing is returned, and the
-    caller is expected to fall back to the rebuild renderer.
+    fails its own read-back check. Either way nothing is returned; a caller that
+    still wants a redline can use the rebuild renderer.
     """
 
 

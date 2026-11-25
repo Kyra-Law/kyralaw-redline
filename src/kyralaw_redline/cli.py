@@ -6,6 +6,7 @@ import argparse
 from pathlib import Path
 
 from kyralaw_redline.docx_io import DEFAULT_AUTHOR, redline_docx
+from kyralaw_redline.inplace import InPlaceRedlineError
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -19,14 +20,16 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--author", default=DEFAULT_AUTHOR, help=f"revision author (default: {DEFAULT_AUTHOR})")
     parser.add_argument(
         "--mode",
-        choices=("auto", "in-place", "rebuild"),
-        default="auto",
-        help="in-place: write into the new document, keeping its formatting; rebuild: a new, plain document; "
-        "auto (default): in-place, rebuilding when that is not possible",
+        choices=("in-place", "rebuild"),
+        default="in-place",
+        help="in-place (default): write into the new document, keeping its formatting; rebuild: a new, plain document",
     )
     args = parser.parse_args(argv)
 
-    out = redline_docx(args.old.read_bytes(), args.new.read_bytes(), author=args.author, mode=args.mode)
+    try:
+        out = redline_docx(args.old.read_bytes(), args.new.read_bytes(), author=args.author, mode=args.mode)
+    except InPlaceRedlineError as exc:
+        raise SystemExit(f"could not redline in place: {exc}\nfor a plain redline instead, use --mode rebuild") from exc
     args.output.write_bytes(out)
     print(f"wrote {args.output} ({len(out):,} bytes)")
 
