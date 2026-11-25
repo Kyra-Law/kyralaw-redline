@@ -177,6 +177,16 @@ rewarded nor penalised.
 To score your own algorithm, subclass `RedlineEngine` (above) and add an instance to `ENGINES` in
 [`eval/engines.py`](eval/engines.py), or write its redlines to a folder and pass `--redlines`.
 
+**Not compared: the commercial comparers.** The comparers law firms buy, such as Litera Compare and
+Draftable, are not in these results, because their licences stand in the way of publishing an
+independent evaluation. Litera's forbids releasing the results of any performance or functional
+evaluation of its software without Litera's prior written approval
+([Master Terms](https://www.litera.com/sites/default/files/file/2025-05/Litera-Master-Terms.pdf),
+clause 3.3(vii)). Draftable's has no clause on evaluations, but limits its software to the
+customer's internal business purposes and a trial to internal evaluation
+([Standard Terms](https://www.draftable.com/legal/product-terms), clauses 1 and 5), so publishing
+its scores would need Draftable's permission as well.
+
 ## Building the benchmark
 
 [`bench/`](bench) is how kyralaw-redline-bench was made, start to finish: Word, driven out of
