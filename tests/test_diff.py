@@ -219,6 +219,13 @@ def test_changed_sentences_meeting_at_a_full_stop_are_one_change() -> None:
     assert added_text(segments) == "italic. This setting"
 
 
+def test_a_possessive_is_one_word() -> None:
+    """Fails if _TOKEN_RE splits a word at its apostrophe."""
+    segments = diff_paragraph("subject to the Licensee's prior consent", "subject to the Licensor's prior consent")
+    assert removed_text(segments) == "Licensee's"
+    assert added_text(segments) == "Licensor's"
+
+
 def test_short_trim_at_a_genuine_boundary_is_not_rejected() -> None:
     """A trim ending in a lone punctuation character is only suspect when it
     swallows the entire old side. "2023." -> "2026." keeps "." as equal."""

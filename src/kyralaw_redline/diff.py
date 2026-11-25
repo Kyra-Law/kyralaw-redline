@@ -36,7 +36,10 @@ from typing import Literal
 
 SegmentKind = Literal["equal", "insert", "delete"]
 
-_TOKEN_RE = re.compile(r"\s+|\w+|[^\s\w]+", re.UNICODE)
+# A word keeps an apostrophe, straight or curly, inside it ("Licensee's", "don't"), as
+# Word reads it: split there, "Licensee's" becoming "Licensor's" kept the "'s" unchanged
+# where Word marks the whole word.
+_TOKEN_RE = re.compile(r"\s+|\w+(?:['\u2019]\w+)*|[^\s\w]+", re.UNICODE)
 
 # The two-pass diff can hit large all-different blocks (a whole paragraph
 # replaced by unrelated new content). Token-level SequenceMatcher.get_opcodes()
