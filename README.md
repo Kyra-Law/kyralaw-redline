@@ -147,11 +147,13 @@ rewarded nor penalised.
   change the old one. Failures are counted beside the score. A pair with no redline is reported and
   left out of the averages, never scored as zero.
 
-**Results** (test, 685 pairs, one Apple silicon Mac):
+**Results** (test, 685 pairs, one Apple silicon Mac; the `docxodus` rows scored at [`0f74a70`](https://github.com/Kyra-Law/kyralaw-redline/tree/0f74a70)):
 
 | Algorithm | What it is | Score | Text F1 | Fidelity | Integrity failures | Median time |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | `word-compare` | Word's own reference, scored as a candidate: a check on the scorer | 100.00 | 100.00 | 1.000 | 0 | |
+| `docxodus` | [Docxodus](https://github.com/JSv4/Docxodus) 17.0.0 through [docx-scalpel](https://pypi.org/project/docx-scalpel/) 0.14.0, the comparison its `redline` command runs; one process serves every pair | 96.33 | 94.58 | 0.998 | 7 | 165 ms |
+| `docxodus-checked` | `docxodus`, each redline read back and, if it does not give back both documents, compared again with only spaces as word separators (7 pairs) | 96.33 | 94.58 | 0.998 | 0 | 298 ms |
 | `python-redlines` | [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0, Open XML PowerTools' comparer | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
 | **`kyralaw-redline`** | this library's default, `mode="in-place"`: all 685 pairs written in place | **94.08** | 91.34 | 0.996 | 0 | 233 ms |
 | `kyralaw-native` | the first in-place renderer, frozen as a baseline ([`eval/kyralaw_native.py`](eval/kyralaw_native.py)); refuses 3 pairs, left out | 94.05 | 91.30 | 0.995 | 0 | 122 ms |
@@ -159,6 +161,11 @@ rewarded nor penalised.
 | `token-diff` | a token-level difflib, no alignment or heuristics | 62.60 | 68.02 | 0.518 | 0 | 1.57 s |
 | `line-diff` | a line diff | 49.68 | 48.56 | 0.519 | 0 | 220 ms |
 
+- **Docxodus leads, by two points**, and is the only algorithm with integrity failures: 7 pairs,
+  one bug. An empty paragraph that became "---", with a new paragraph after it, is written as
+  unchanged, so rejecting every change keeps the "---". `docxodus-checked` reads each redline back
+  and compares again with only spaces as word separators when it fails, which fixes all 7 without
+  moving the score; the reading costs about 130 ms a pair.
 - **`kyralaw-redline` and `kyralaw-native` mark the same changes.** On the 682 pairs
   `kyralaw-native` writes in place they score 94.07 and 94.05.
 - **Only `kyralaw-native` refuses.** On 3 pairs, tables where a row is deleted or added and the

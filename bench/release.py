@@ -67,16 +67,19 @@ SCORER_REPOSITORY = "https://github.com/Kyra-Law/kyralaw-redline"
 # The tag on SCORER_REPOSITORY holding the exact code that produced this version.
 CODE_TAG = f"bench-v{VERSION}"
 
-# The card shows kyralaw-redline once, in place (its default), beside the other algorithms.
+# The card shows kyralaw-redline once, in place (its default), and Docxodus as it ships, beside the
+# other algorithms.
 # bench/results.md keeps every variant: the repository's README shows them all, and the
 # container compares each one's score.
-CARD_HIDDEN = frozenset({"kyralaw-native", "kyralaw-redline-rebuild"})
+CARD_HIDDEN = frozenset({"docxodus-checked", "kyralaw-native", "kyralaw-redline-rebuild"})
 CARD_NOTES = f"""- **Keeping the document matters.** `token-diff` and `line-diff` write into a blank document, so
-  tables, headers and footers do not survive, and their fidelity is about half. `python-redlines`
-  and `kyralaw-redline` write into the new document itself, the way Word does.
-- **Deletions are harder than insertions** for every algorithm, by about 8 points of F1 at the top.
+  tables, headers and footers do not survive, and their fidelity is about half. `docxodus`,
+  `python-redlines` and `kyralaw-redline` write into the new document itself, the way Word does.
+- **Deletions are harder than insertions** for every algorithm, by 5 to 9 points of F1 at the top.
 - **Integrity failures** are redlines whose changes, all accepted or all rejected, do not give back
-  the two documents. None of these algorithms has any.
+  the two documents. Only `docxodus` has any: 7, all one bug, where an empty paragraph became "---".
+  Checking each redline and comparing again fixes them without moving the score; see
+  [the repository's README]({SCORER_REPOSITORY}#the-benchmark-kyralaw-redline-bench).
 - **Times** are for producing each redline from the two files, on one machine. Treat them as
   relative.
 - kyralaw-redline's rebuild renderer, and a frozen earlier version of it, are scored in
