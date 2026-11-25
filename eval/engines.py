@@ -12,16 +12,21 @@ instance in ``ENGINES``.
 from __future__ import annotations
 
 import difflib
+import re
 from collections.abc import Callable
 from datetime import datetime, timezone
 
 from kyralaw_native import NativeEngine
 
 from kyralaw_redline import DiffSegment, extract_text, render_segments_docx
-from kyralaw_redline.diff import _tokenize
 from kyralaw_redline.engine import InPlaceEngine, RebuildEngine, RedlineEngine
 
 FIXED_DATE = datetime(2026, 1, 1, tzinfo=timezone.utc)
+
+# token-diff's own tokens: whitespace, runs of word characters, runs of anything else.
+# kyralaw-redline's tokenizer was this once; a baseline keeps its copy, so a change to the
+# library does not move the number it is measured against.
+_BASELINE_TOKEN_RE = re.compile(r"\s+|\w+|[^\s\w]+", re.UNICODE)
 
 
 def _opcode_segments(old: list[str], new: list[str], isjunk: Callable[[str], bool] | None) -> list[DiffSegment]:
@@ -56,8 +61,8 @@ class TokenDiffEngine(RedlineEngine):
     name = "token-diff"
 
     def redline(self, old_docx: bytes, new_docx: bytes) -> bytes:
-        old = _tokenize(extract_text(old_docx))
-        new = _tokenize(extract_text(new_docx))
+        old = _BASELINE_TOKEN_RE.findall(extract_text(old_docx))
+        new = _BASELINE_TOKEN_RE.findall(extract_text(new_docx))
         return render_segments_docx(_opcode_segments(old, new, str.isspace), date=FIXED_DATE)
 
 
