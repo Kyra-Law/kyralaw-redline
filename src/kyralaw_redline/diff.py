@@ -279,6 +279,12 @@ def _join_punctuation_islands(run: list[_Opcode], old_tokens: list[str]) -> list
     return out
 
 
+# A run is replaced as one change when the unchanged text it keeps is less than
+# 1/_RUN_KEEP_DIVISOR of the text it changes (see _render_run). Chosen by a sweep on the
+# dev split: flat from 1/8 to 1/6, falling either side; a seventh is the middle.
+_RUN_KEEP_DIVISOR = 7
+
+
 def _render_run(run: list[_Opcode], old_tokens: list[str], new_tokens: list[str]) -> list[DiffSegment]:
     """Render a run two ways and keep whichever changes less text.
 
@@ -299,6 +305,14 @@ def _render_run(run: list[_Opcode], old_tokens: list[str], new_tokens: list[str]
     "equal '.'" let the naive rendering reuse the old paragraph's final
     period to plug the "." inside "3.8", splitting one coherent insert into
     two fragments that do not concatenate back to the inserted text.
+
+    Merged is also preferred when the unchanged text the naive rendering keeps
+    is less than a seventh of the text it changes (:data:`_RUN_KEEP_DIVISOR`).
+    "satisfied in cash or permitted investments at closing" becoming "satisfied
+    by the deposit of cash or permitted investments, or by the delivery of a
+    surety bond ... in the face amount of the requirement" kept "cash or
+    permitted investments" and "at" and split a long insertion around them;
+    Word replaces the stretch as one change, which reads as what happened.
 
     The check is over the whole run's old span, not "does the naive
     rendering contain a low-information equal": a long paragraph rewritten
@@ -328,6 +342,9 @@ def _render_run(run: list[_Opcode], old_tokens: list[str], new_tokens: list[str]
     merged = _replace_segments(run_old_span, new_tokens[j1:j2])
 
     if run_old_span and all(_is_low_information_token(t) for t in run_old_span):
+        return merged
+    kept = sum(len(s.text.strip()) for s in naive if s.kind == "equal")
+    if kept * _RUN_KEEP_DIVISOR < _changed_length(naive):
         return merged
     return merged if _changed_length(merged) < _changed_length(naive) else naive
 

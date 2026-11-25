@@ -265,6 +265,21 @@ def test_a_stretch_of_changes_is_one_deletion_then_one_insertion() -> None:
     ]
 
 
+def test_a_short_match_inside_a_long_change_is_not_kept() -> None:
+    """ "cash or permitted investments" and "at" are a sliver of a long rewrite;
+    kept, they split the insertion into pieces. Fails if _render_run ignores
+    _RUN_KEEP_DIVISOR."""
+    old = "The requirement shall be satisfied in cash or permitted investments at closing."
+    new = (
+        "The requirement shall be satisfied by the deposit of cash or permitted investments, or by the delivery "
+        "of a surety bond from a qualified financial guaranty insurer rated at least AA by at least one nationally "
+        "recognised rating agency, in the face amount of the requirement as determined on the date of issue."
+    )
+    segments = diff_paragraph(old, new)
+    assert removed_text(segments) == "in cash or permitted investments at closing"
+    assert [s.kind for s in segments] == ["equal", "delete", "insert", "equal"]
+
+
 def test_short_trim_at_a_genuine_boundary_is_not_rejected() -> None:
     """A trim ending in a lone punctuation character is only suspect when it
     swallows the entire old side. "2023." -> "2026." keeps "." as equal."""
