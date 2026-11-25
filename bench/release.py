@@ -64,6 +64,8 @@ SPLIT_SEED = 20261120
 FIXED_DATE = "2026-01-01T00:00:00Z"
 LAB_REPOSITORY = "https://github.com/harveyai/harvey-labs"
 SCORER_REPOSITORY = "https://github.com/Kyra-Law/kyralaw-redline"
+# The tag on SCORER_REPOSITORY holding the exact code that produced this version.
+CODE_TAG = f"bench-v{VERSION}"
 FILES = {"old.docx": "old.docx", "new.docx": "new.docx", "old_to_new.docx": "reference.docx"}
 
 _MIT = """MIT License
@@ -445,7 +447,8 @@ agreements.
 ## Scoring
 
 The scorer (`eval/bench.py`) and the code that built this dataset (`bench/`) are in
-[kyralaw-redline]({SCORER_REPOSITORY}). Each redline
+[kyralaw-redline]({SCORER_REPOSITORY}); tag [`{CODE_TAG}`]({SCORER_REPOSITORY}/tree/{CODE_TAG}) is the
+exact code that produced this version. Each redline
 is read for the text it marks inserted and deleted, through the same parser as the reference, and
 compared as bags of words: precision, recall and F1 for insertions and for deletions. Moved text
 counts as deleted where it was and inserted where it went, in the reference and in the candidate

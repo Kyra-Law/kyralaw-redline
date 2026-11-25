@@ -1,4 +1,4 @@
-Scored with [`eval/bench.py`](https://github.com/Kyra-Law/kyralaw-redline/blob/main/eval/bench.py) on the
+Scored with [`eval/bench.py`](https://github.com/Kyra-Law/kyralaw-redline/blob/bench-v1.0.0/eval/bench.py) on the
 `test` split (685 pairs), on one Apple silicon Mac. Every algorithm here runs from that repository.
 
 | Algorithm | What it is | Score | Text F1 | Insert F1 | Delete F1 | Fidelity | Integrity failures | Median time per pair |
