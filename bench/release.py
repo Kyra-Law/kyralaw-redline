@@ -75,7 +75,7 @@ CARD_HIDDEN = frozenset({"docxodus-checked", "kyralaw-native", "kyralaw-redline-
 CARD_NOTES = f"""- **Keeping the document matters.** `token-diff` and `line-diff` write into a blank document, so
   tables, headers and footers do not survive, and their fidelity is about half. `docxodus`,
   `python-redlines` and `kyralaw-redline` write into the new document itself, the way Word does.
-- **Deletions are harder than insertions** for every algorithm, by 5 to 9 points of F1 at the top.
+- **Deletions are harder than insertions** for every algorithm, by 4 to 8 points of F1 at the top.
 - **Integrity failures** are redlines whose changes, all accepted or all rejected, do not give back
   the two documents. Only `docxodus` has any: 7, all one bug, where an empty paragraph became "---".
   Checking each redline and comparing again fixes them without moving the score; see

@@ -147,37 +147,35 @@ rewarded nor penalised.
   change the old one. Failures are counted beside the score. A pair with no redline is reported and
   left out of the averages, never scored as zero.
 
-**Results** (test, 685 pairs, one Apple silicon Mac; the `docxodus` rows scored at [`0f74a70`](https://github.com/Kyra-Law/kyralaw-redline/tree/0f74a70)):
+**Results** (test, 685 pairs, one Apple silicon Mac; kyralaw-redline's rows scored at [`836fe1b`](https://github.com/Kyra-Law/kyralaw-redline/tree/836fe1b), the `docxodus` rows at [`0f74a70`](https://github.com/Kyra-Law/kyralaw-redline/tree/0f74a70)):
 
 | Algorithm | What it is | Score | Text F1 | Fidelity | Integrity failures | Median time |
 | --- | --- | ---: | ---: | ---: | ---: | ---: |
 | `word-compare` | Word's own reference, scored as a candidate: a check on the scorer | 100.00 | 100.00 | 1.000 | 0 | |
+| **`kyralaw-redline`** | this library's default, `mode="in-place"`: all 685 pairs written in place | **97.46** | 96.41 | 0.996 | 0 | 257 ms |
 | `docxodus` | [Docxodus](https://github.com/JSv4/Docxodus) 17.0.0 through [docx-scalpel](https://pypi.org/project/docx-scalpel/) 0.14.0, the comparison its `redline` command runs; one process serves every pair | 96.33 | 94.58 | 0.998 | 7 | 165 ms |
 | `docxodus-checked` | `docxodus`, each redline read back and, if it does not give back both documents, compared again with only spaces as word separators (7 pairs) | 96.33 | 94.58 | 0.998 | 0 | 298 ms |
+| `kyralaw-native` | the first in-place renderer, its paragraph alignment frozen as a baseline ([`eval/kyralaw_native.py`](eval/kyralaw_native.py)); refuses 3 pairs, left out | 96.18 | 94.50 | 0.995 | 0 | 124 ms |
 | `python-redlines` | [python-redlines](https://github.com/JSv4/Python-Redlines) 0.3.0, Open XML PowerTools' comparer | 94.31 | 91.84 | 0.992 | 0 | 2.58 s |
-| **`kyralaw-redline`** | this library's default, `mode="in-place"`: all 685 pairs written in place | **94.08** | 91.34 | 0.996 | 0 | 233 ms |
-| `kyralaw-native` | the first in-place renderer, frozen as a baseline ([`eval/kyralaw_native.py`](eval/kyralaw_native.py)); refuses 3 pairs, left out | 94.05 | 91.30 | 0.995 | 0 | 122 ms |
-| `kyralaw-redline-rebuild` | this library, `mode="rebuild"` | 78.72 | 92.39 | 0.514 | 0 | 353 ms |
+| `kyralaw-redline-rebuild` | this library, `mode="rebuild"` | 81.40 | 96.41 | 0.514 | 0 | 319 ms |
 | `token-diff` | a token-level difflib, no alignment or heuristics | 62.60 | 68.02 | 0.518 | 0 | 1.57 s |
 | `line-diff` | a line diff | 49.68 | 48.56 | 0.519 | 0 | 220 ms |
 
-- **Docxodus leads, by two points**, and is the only algorithm with integrity failures: 7 pairs,
-  one bug. An empty paragraph that became "---", with a new paragraph after it, is written as
-  unchanged, so rejecting every change keeps the "---". `docxodus-checked` reads each redline back
-  and compares again with only spaces as word separators when it fails, which fixes all 7 without
-  moving the score; the reading costs about 130 ms a pair.
-- **`kyralaw-redline` and `kyralaw-native` mark the same changes.** On the 682 pairs
-  `kyralaw-native` writes in place they score 94.07 and 94.05.
+- **kyralaw-redline leads, by about a point over Docxodus**, which is the only algorithm with
+  integrity failures: 7 pairs, one bug. An empty paragraph that became "---", with a new paragraph
+  after it, is written as unchanged, so rejecting every change keeps the "---". `docxodus-checked`
+  reads each redline back and compares again with only spaces as word separators when it fails,
+  which fixes all 7 without moving the score; the reading costs about 130 ms a pair.
+- **`kyralaw-redline` and `kyralaw-native` share the word diff, not the paragraph alignment.** On
+  the 682 pairs `kyralaw-native` writes in place they score 97.46 and 96.18: `kyralaw-native` keeps
+  its first alignment, where two blank paragraphs could outweigh pairing an edited clause.
 - **Only `kyralaw-native` refuses.** On 3 pairs, tables where a row is deleted or added and the
   same value recurs in other rows, its own accept/reject check fails and it produces nothing.
   `kyralaw-redline` keeps every pair inside corresponding table rows and writes those 3 in place
-  too (about 96 each).
-- **`kyralaw-redline-rebuild` marks the text about a point better than `kyralaw-redline`**,
-  though they share one diff. They read the documents differently: rebuild diffs the text
-  `extract_text` gives, in-place the paragraphs of the documents themselves, table cells included.
-  Which reading costs what is worth a closer look.
-- **Fidelity decides the ranking.** Rebuild writes into a blank document, so tables, headers and
-  footers do not survive; in place they all do.
+  too (about 98 each).
+- **Rebuild and in place mark the text equally well** (text F1 96.41 each), since they share one
+  diff, so fidelity decides the ranking: rebuild writes into a blank document, so tables, headers
+  and footers do not survive; in place they all do.
 - **Times** are from producing each redline from the two files, on one machine. Treat them as
   relative.
 
