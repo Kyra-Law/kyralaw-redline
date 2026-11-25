@@ -1,7 +1,7 @@
 # kyralaw-redline
 
-Word-level redlines for legal documents, rendered as native Word tracked changes, with an open
-evaluation set to measure them.
+Word-level redlines for legal documents, rendered as native Word tracked changes, with an
+[open evaluation set](https://huggingface.co/datasets/kyralaw/kyralaw-redline-bench) to measure them.
 
 ```bash
 pip install kyralaw-redline   # once published; for now: pip install git+https://github.com/Kyra-Law/kyralaw-redline
@@ -112,15 +112,18 @@ not carried over.
 **kyralaw-redline-bench** is 733 pairs of synthetic contracts and other legal documents derived
 from [Harvey LAB](https://github.com/harveyai/harvey-labs), each with Microsoft Word's own Compare
 Documents of the two versions as the reference. 48 pairs are a `dev` split for tuning; scores are
-reported on the other 685, `test`. The dataset is MIT licensed and published separately; its card
-explains how it was made and what was left out. [`eval/bench.py`](eval/bench.py) scores it, with no
+reported on the other 685, `test`. The dataset is MIT licensed and published on Hugging Face as
+[`kyralaw/kyralaw-redline-bench`](https://huggingface.co/datasets/kyralaw/kyralaw-redline-bench); its
+card explains how it was made and what was left out. [`eval/bench.py`](eval/bench.py) scores it, with no
 Word needed:
 
 ```bash
-uv run python eval/bench.py path/to/kyralaw-redline-bench                      # built-in algorithms, test
-uv run python eval/bench.py path/to/kyralaw-redline-bench --split dev
-uv run python eval/bench.py path/to/kyralaw-redline-bench --redlines mine=out/  # your redlines: out/<id>.docx
-uv run python eval/bench.py path/to/kyralaw-redline-bench -a word-compare       # check the scorer: 100.00
+uvx --from huggingface_hub hf download kyralaw/kyralaw-redline-bench --repo-type dataset --local-dir kyralaw-redline-bench
+
+uv run python eval/bench.py kyralaw-redline-bench                      # built-in algorithms, test
+uv run python eval/bench.py kyralaw-redline-bench --split dev
+uv run python eval/bench.py kyralaw-redline-bench --redlines mine=out/  # your redlines: out/<id>.docx
+uv run python eval/bench.py kyralaw-redline-bench -a word-compare       # check the scorer: 100.00
 ```
 
 **Scoring.** Each algorithm runs end to end, `.docx` in and `.docx` out. The text a redline marks
@@ -192,7 +195,7 @@ claims, with no network:
 ```bash
 docker build -t kyralaw-redline .
 docker run --rm --network none kyralaw-redline
-docker run --rm --network none -v /path/to/kyralaw-redline-bench:/data:ro kyralaw-redline
+docker run --rm --network none -v "$PWD/kyralaw-redline-bench":/data:ro kyralaw-redline   # downloaded as above
 ```
 
 - **Isolation:** no other Kyra Law codebase is installed or referred to anywhere in the code.

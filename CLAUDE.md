@@ -41,7 +41,7 @@ Guidance for Claude Code working in this repository. This repository is intended
 that moves a kyralaw-redline-bench score must update `bench/results.md` in the same change: the
 container compares every score with it.
 
-**CI scores no redlines.** The dataset is published separately, so CI checks lint, types and tests
+**CI scores no redlines.** The dataset lives on Hugging Face, not here, so CI checks lint, types and tests
 but scores nothing. A change to `diff.py` or `inplace.py` is scored by hand before it lands: `verify.sh` with the
 dataset mounted, or `eval/bench.py` on the test split, compared with `bench/results.md`. Use the
 `dev` split for tuning, never `test`.
