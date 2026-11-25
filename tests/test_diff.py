@@ -201,6 +201,24 @@ def test_an_edited_paragraph_pairs_across_a_blank_one() -> None:
     ]
 
 
+def test_a_figure_in_words_and_digits_is_one_change() -> None:
+    """The "(" both sides share touches no unchanged word, so it is not left as an
+    island between "twenty"/"ten" and "20"/"10". Fails if _render_run skips
+    _join_punctuation_islands."""
+    segments = diff_paragraph("within twenty (20) business days of", "within ten (10) business days of")
+    assert removed_text(segments) == "twenty (20"
+    assert added_text(segments) == "ten (10"
+
+
+def test_changed_sentences_meeting_at_a_full_stop_are_one_change() -> None:
+    """Fails if _render_run skips _join_punctuation_islands."""
+    segments = diff_paragraph(
+        "Set the margin. The rule applies to every page.", "Set the italic. This setting applies to every page."
+    )
+    assert removed_text(segments) == "margin. The rule"
+    assert added_text(segments) == "italic. This setting"
+
+
 def test_short_trim_at_a_genuine_boundary_is_not_rejected() -> None:
     """A trim ending in a lone punctuation character is only suspect when it
     swallows the entire old side. "2023." -> "2026." keeps "." as equal."""

@@ -247,6 +247,35 @@ def _changed_length(segments: list[DiffSegment]) -> int:
     return sum(len(s.text) for s in segments if s.kind in ("delete", "insert"))
 
 
+_WORD_CHAR_RE = re.compile(r"\w", re.UNICODE)
+
+
+def _join_punctuation_islands(run: list[_Opcode], old_tokens: list[str]) -> list[_Opcode]:
+    """Fold an equal of only punctuation and whitespace, between two edits, into one replace with them.
+
+    "within twenty (20) business days" becoming "within ten (10) business days" rendered
+    as ``within[- twenty-]{+ ten+} ([-20-]{+10+}) business days``: the "(" and ")" both
+    sides share were left unchanged between two edits, and the reader has to piece the new
+    figure together around them. Word replaces the stretch as one change, ``within [-twenty
+    (20)-]{+ten (10)+} business days``, and so does this. Docxodus decoded the rule from
+    Word's output: matched punctuation stays unchanged only where it touches an unchanged
+    word. Inside a run an equal always sits between two edits (see :func:`_group_runs`),
+    so an equal with no letter or digit in it touches none.
+    """
+    out: list[_Opcode] = []
+    join_next = False
+    for k, (tag, i1, i2, j1, j2) in enumerate(run):
+        island = tag == "equal" and 0 < k < len(run) - 1 and not any(_WORD_CHAR_RE.search(t) for t in old_tokens[i1:i2])
+        if island or join_next:
+            # Stretch the previous opcode, an edit or an already joined stretch, over this one.
+            _, a1, _, b1, _ = out.pop()
+            out.append(("replace", a1, i2, b1, j2))
+            join_next = island
+            continue
+        out.append((tag, i1, i2, j1, j2))
+    return out
+
+
 def _render_run(run: list[_Opcode], old_tokens: list[str], new_tokens: list[str]) -> list[DiffSegment]:
     """Render a run two ways and keep whichever changes less text.
 
@@ -277,7 +306,7 @@ def _render_run(run: list[_Opcode], old_tokens: list[str], new_tokens: list[str]
     several long unchanged phrases as equal.
     """
     naive: list[DiffSegment] = []
-    for tag, i1, i2, j1, j2 in run:
+    for tag, i1, i2, j1, j2 in _join_punctuation_islands(run, old_tokens):
         if tag == "equal":
             naive.append(DiffSegment("equal", "".join(old_tokens[i1:i2])))
         elif tag == "delete":
