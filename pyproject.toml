@@ -9,7 +9,7 @@ description = "Word-level redlines for legal documents, rendered as native Word 
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
-authors = [{ name = "Kyra Law Limited" }]
+authors = [{ name = "Jaap Oosterbroek", email = "jaap.oosterbroek@kyralaw.co.uk" }]
 requires-python = ">=3.10"
 dependencies = [
     "lxml>=5.0",
